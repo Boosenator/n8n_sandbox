@@ -208,64 +208,49 @@ export function AdminOverview() {
 
   return (
     <>
-      <section className="hero hero-tight compact admin-hero">
-        <div>
+      <section className="panel admin-topbar">
+        <div className="admin-title-group">
           <p className="eyebrow">Mock Admin</p>
-          <h1>Компактний mock admin для staff і services</h1>
-          <p className="hero-copy">
-            Робоча область зібрана навколо швидкого редагування: вибір секції,
-            список, редактор і короткі fixture-дії без зайвих великих блоків.
-          </p>
-        </div>
-        <div className="admin-hero-meta">
-          <div className="stat-card compact-stat-card">
-            <span className="stat-label">Section</span>
-            <strong>{activeTab === "staff" ? "Staff" : "Services"}</strong>
-          </div>
-          <div className="stat-card compact-stat-card">
-            <span className="stat-label">Status</span>
-            <strong>{loading ? "Loading..." : "API connected"}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel admin-toolbar">
-        <div className="toolbar-block">
-          <span className="panel-kicker">Sections</span>
-          <div className="compact-tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`compact-tab${activeTab === tab.id ? " active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
-                type="button"
-              >
-                {tab.title}
-              </button>
-            ))}
-          </div>
+          <h1>Salon Data Control</h1>
         </div>
 
-        <div className="toolbar-block toolbar-actions">
-          <span className="panel-kicker">Quick Actions</span>
-          <div className="compact-actions">
+        <div className="admin-inline-tabs">
+          {tabs.map((tab) => (
             <button
-              className="primary-button"
-              disabled={busy === "seed"}
-              onClick={() => void seedDefaults()}
+              key={tab.id}
+              className={`compact-tab${activeTab === tab.id ? " active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
               type="button"
             >
-              Seed defaults
+              {tab.title}
             </button>
-            <button
-              className="secondary-button"
-              disabled={busy === "export"}
-              onClick={() => void exportSnapshot()}
-              type="button"
-            >
-              Export snapshot
-            </button>
-          </div>
+          ))}
+        </div>
+
+        <div className="admin-meta-strip">
+          <span className="status-chip">
+            {activeTab === "staff" ? `${staff.length} staff` : `${services.length} services`}
+          </span>
+          <span className="status-chip">{loading ? "Loading..." : "API connected"}</span>
+        </div>
+
+        <div className="compact-actions admin-top-actions">
+          <button
+            className="secondary-button"
+            disabled={busy === "export"}
+            onClick={() => void exportSnapshot()}
+            type="button"
+          >
+            Export
+          </button>
+          <button
+            className="primary-button"
+            disabled={busy === "seed"}
+            onClick={() => void seedDefaults()}
+            type="button"
+          >
+            Seed
+          </button>
         </div>
       </section>
 
@@ -273,9 +258,8 @@ export function AdminOverview() {
 
       <section className="admin-layout compact-admin-layout">
         <div className="panel admin-workspace full-span">
-          <div className="panel-header compact-panel-header">
+          <div className="panel-header compact-panel-header admin-workspace-header">
             <div>
-              <p className="panel-kicker">Workspace</p>
               <h2>{activeTab === "staff" ? "Staff Manager" : "Services Manager"}</h2>
             </div>
             <span className="panel-note">
@@ -288,7 +272,10 @@ export function AdminOverview() {
           {activeTab === "staff" ? (
             <div className="admin-grid compact-admin-grid">
               <div className="mini-panel compact-panel-shell">
-                <h3>List</h3>
+                <div className="mini-panel-header">
+                  <h3>List</h3>
+                  <span className="panel-note">{staff.length} items</span>
+                </div>
                 <div className="entity-list compact-entity-list">
                   {staff.map((item) => (
                     <div key={item.id} className="entity-card">
@@ -332,26 +319,33 @@ export function AdminOverview() {
               </div>
 
               <div className="mini-panel compact-panel-shell">
-                <h3>Editor</h3>
+                <div className="mini-panel-header">
+                  <h3>Editor</h3>
+                  <span className="panel-note">
+                    {staffForm.id ? "Editing existing record" : "Create new record"}
+                  </span>
+                </div>
                 <div className="settings-form single-column">
-                  <label className="field">
-                    <span>Ім'я</span>
-                    <input
-                      value={staffForm.name}
-                      onChange={(event) =>
-                        setStaffForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Роль</span>
-                    <input
-                      value={staffForm.role}
-                      onChange={(event) =>
-                        setStaffForm((current) => ({ ...current, role: event.target.value }))
-                      }
-                    />
-                  </label>
+                  <div className="compact-form-grid">
+                    <label className="field">
+                      <span>Ім'я</span>
+                      <input
+                        value={staffForm.name}
+                        onChange={(event) =>
+                          setStaffForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Роль</span>
+                      <input
+                        value={staffForm.role}
+                        onChange={(event) =>
+                          setStaffForm((current) => ({ ...current, role: event.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
                   <label className="field">
                     <span>Нотатки</span>
                     <textarea
@@ -422,7 +416,10 @@ export function AdminOverview() {
           ) : (
             <div className="admin-grid compact-admin-grid">
               <div className="mini-panel compact-panel-shell">
-                <h3>List</h3>
+                <div className="mini-panel-header">
+                  <h3>List</h3>
+                  <span className="panel-note">{services.length} items</span>
+                </div>
                 <div className="entity-list compact-entity-list">
                   {services.map((item) => (
                     <div key={item.id} className="entity-card">
@@ -465,43 +462,50 @@ export function AdminOverview() {
               </div>
 
               <div className="mini-panel compact-panel-shell">
-                <h3>Editor</h3>
+                <div className="mini-panel-header">
+                  <h3>Editor</h3>
+                  <span className="panel-note">
+                    {serviceForm.id ? "Editing existing record" : "Create new record"}
+                  </span>
+                </div>
                 <div className="settings-form single-column">
-                  <label className="field">
-                    <span>Назва</span>
-                    <input
-                      value={serviceForm.name}
-                      onChange={(event) =>
-                        setServiceForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Тривалість, хв</span>
-                    <input
-                      type="number"
-                      value={serviceForm.durationMinutes}
-                      onChange={(event) =>
-                        setServiceForm((current) => ({
-                          ...current,
-                          durationMinutes: Number(event.target.value)
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Ціна від</span>
-                    <input
-                      type="number"
-                      value={serviceForm.priceFrom}
-                      onChange={(event) =>
-                        setServiceForm((current) => ({
-                          ...current,
-                          priceFrom: Number(event.target.value)
-                        }))
-                      }
-                    />
-                  </label>
+                  <div className="compact-form-grid compact-form-grid-3">
+                    <label className="field">
+                      <span>Назва</span>
+                      <input
+                        value={serviceForm.name}
+                        onChange={(event) =>
+                          setServiceForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Тривалість, хв</span>
+                      <input
+                        type="number"
+                        value={serviceForm.durationMinutes}
+                        onChange={(event) =>
+                          setServiceForm((current) => ({
+                            ...current,
+                            durationMinutes: Number(event.target.value)
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Ціна від</span>
+                      <input
+                        type="number"
+                        value={serviceForm.priceFrom}
+                        onChange={(event) =>
+                          setServiceForm((current) => ({
+                            ...current,
+                            priceFrom: Number(event.target.value)
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
                   <label className="toggle-field">
                     <input
                       checked={serviceForm.active}
