@@ -3,9 +3,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   DialogReviewRecord,
+  MessageLogRecord,
+  ObservabilityEventRecord,
   PersonaOption,
   SandboxMessage,
   SessionPayload,
+  SnapshotSource,
   ToolTraceRecord
 } from "@/lib/types";
 
@@ -14,19 +17,19 @@ const storageKey = "vangel-sandbox-session";
 const initialSession: SessionPayload = {
   webhookUrl: "",
   contactId: "SANDBOX_TEST_0001",
-  contactName: "Тестовий клієнт",
+  contactName: "Test client",
   contactUsername: "sandbox_tester",
   persona: "new_client",
   debugPayload: false
 };
 
 const quickScenarios = [
-  "Перший контакт",
-  "Підбір майстра",
-  "Запис на послугу",
-  "Перенесення запису",
-  "Скасування",
-  "Ескалація до майстра"
+  "First contact",
+  "Pick a master",
+  "Book a service",
+  "Reschedule",
+  "Cancellation",
+  "Escalation"
 ];
 
 const personaLabels: Record<PersonaOption, string> = {
@@ -35,6 +38,13 @@ const personaLabels: Record<PersonaOption, string> = {
   vip: "VIP",
   complaint: "Complaint"
 };
+
+function formatTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString("uk-UA", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
 
 export function SandboxShell() {
   const [session, setSession] = useState<SessionPayload>(initialSession);
@@ -47,12 +57,21 @@ export function SandboxShell() {
   const [lastStatus, setLastStatus] = useState<string>("idle");
   const [error, setError] = useState<string>("");
   const [toolCalls, setToolCalls] = useState<ToolTraceRecord[]>([]);
+  const [messagesLog, setMessagesLog] = useState<MessageLogRecord[]>([]);
+  const [events, setEvents] = useState<ObservabilityEventRecord[]>([]);
   const [reviews, setReviews] = useState<DialogReviewRecord[]>([]);
+  const [sources, setSources] = useState<{
+    messagesLog: SnapshotSource;
+    dialogReviews: SnapshotSource;
+  }>({
+    messagesLog: "local",
+    dialogReviews: "local"
+  });
   const lastTimestampRef = useRef<number | undefined>(undefined);
 
   const prettyPayload = useMemo(() => {
     if (!lastPayload) {
-      return "Поки payload ще не згенеровано.";
+      return "No payload captured yet.";
     }
 
     return lastPayload;
@@ -98,7 +117,7 @@ export function SandboxShell() {
 
     const timer = window.setInterval(() => {
       void pollMessages();
-      void pollObservability();
+      void loadObservability();
     }, 2500);
 
     return () => window.clearInterval(timer);
@@ -123,16 +142,14 @@ export function SandboxShell() {
       const data = (await response.json()) as { items?: SandboxMessage[]; error?: string };
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Не вдалося завантажити повідомлення");
+        throw new Error(data.error ?? "Failed to load messages");
       }
 
       const items = data.items ?? [];
       setMessages(items);
       lastTimestampRef.current = items.at(-1)?.timestamp;
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : "Помилка завантаження повідомлень"
-      );
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load messages");
     } finally {
       setLoadingMessages(false);
     }
@@ -147,7 +164,13 @@ export function SandboxShell() {
       const data = (await response.json()) as {
         snapshot?: {
           toolCalls?: ToolTraceRecord[];
+          messagesLog?: MessageLogRecord[];
           dialogReviews?: DialogReviewRecord[];
+          events?: ObservabilityEventRecord[];
+          sources?: {
+            messagesLog: SnapshotSource;
+            dialogReviews: SnapshotSource;
+          };
         };
       };
 
@@ -156,17 +179,23 @@ export function SandboxShell() {
       }
 
       setToolCalls(data.snapshot.toolCalls ?? []);
+      setMessagesLog(data.snapshot.messagesLog ?? []);
       setReviews(data.snapshot.dialogReviews ?? []);
+      setEvents(data.snapshot.events ?? []);
+      setSources(
+        data.snapshot.sources ?? {
+          messagesLog: "local",
+          dialogReviews: "local"
+        }
+      );
     } catch {
-      // Keep UI silent on trace refresh errors.
+      // Keep the sidebar quiet on polling errors.
     }
   }
 
   async function pollMessages() {
     try {
-      const suffix = lastTimestampRef.current
-        ? `&since=${lastTimestampRef.current}`
-        : "";
+      const suffix = lastTimestampRef.current ? `&since=${lastTimestampRef.current}` : "";
       const response = await fetch(
         `/api/sandbox/messages?contact_id=${encodeURIComponent(session.contactId)}${suffix}`,
         { cache: "no-store" }
@@ -182,10 +211,6 @@ export function SandboxShell() {
     } catch {
       // Ignore polling errors to keep the UI calm.
     }
-  }
-
-  async function pollObservability() {
-    await loadObservability();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -219,7 +244,7 @@ export function SandboxShell() {
       };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Не вдалося відправити повідомлення");
+        throw new Error(data.error ?? "Failed to send message");
       }
 
       setDraft("");
@@ -228,9 +253,7 @@ export function SandboxShell() {
       await loadMessages();
       await loadObservability();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : "Помилка відправки повідомлення"
-      );
+      setError(caughtError instanceof Error ? caughtError.message : "Message send error");
     } finally {
       setSending(false);
     }
@@ -252,13 +275,16 @@ export function SandboxShell() {
       const data = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Не вдалося очистити історію");
+        throw new Error(data.error ?? "Failed to reset history");
       }
 
       setMessages([]);
+      setMessagesLog([]);
+      setEvents([]);
+      setReviews([]);
       lastTimestampRef.current = undefined;
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Помилка reset");
+      setError(caughtError instanceof Error ? caughtError.message : "Reset error");
     }
   }
 
@@ -267,21 +293,20 @@ export function SandboxShell() {
       <section className="hero hero-tight">
         <div>
           <p className="eyebrow">VAngel Sandbox</p>
-          <h1>Робочий зріз із реальним chat API і polling</h1>
+          <h1>Sandbox chat API with polling and DB-backed signals</h1>
           <p className="hero-copy">
-            Чат уже ходить у route handlers, тримає сесію локально, вміє
-            скидати історію і показує mock-відповіді, якщо webhook ще не
-            підключений.
+            Chat keeps local session state, polls new messages, shows live tool activity, and now
+            prefers Supabase reviews and message logs when they are available.
           </p>
         </div>
 
         <div className="hero-stats compact-stats">
           <div className="stat-card">
-            <span className="stat-label">Режим</span>
+            <span className="stat-label">Mode</span>
             <strong>{sending ? "Sending..." : "API wired"}</strong>
           </div>
           <div className="stat-card">
-            <span className="stat-label">Контакт</span>
+            <span className="stat-label">Contact</span>
             <strong>{session.contactId}</strong>
           </div>
           <div className="stat-card">
@@ -305,14 +330,12 @@ export function SandboxShell() {
 
           <div className="messages-list">
             {loadingMessages ? (
-              <div className="empty-state">Завантажую історію...</div>
+              <div className="empty-state">Loading conversation...</div>
             ) : messages.length ? (
               messages.map((message) => (
                 <article
                   key={message.id}
-                  className={`message-row ${
-                    message.author === "client" ? "client-row" : "salon-row"
-                  }`}
+                  className={`message-row ${message.author === "client" ? "client-row" : "salon-row"}`}
                 >
                   <div
                     className={`message ${
@@ -327,17 +350,12 @@ export function SandboxShell() {
                           : "VAngel sandbox"}
                     </span>
                     <p>{message.text}</p>
-                    <time className="message-time">
-                      {new Date(message.timestamp).toLocaleTimeString("uk-UA", {
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })}
-                    </time>
+                    <time className="message-time">{formatTime(message.timestamp)}</time>
                   </div>
                 </article>
               ))
             ) : (
-              <div className="empty-state">Історія порожня. Надішли перше повідомлення.</div>
+              <div className="empty-state">History is empty. Send the first test message.</div>
             )}
           </div>
 
@@ -346,7 +364,7 @@ export function SandboxShell() {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               rows={3}
-              placeholder="Введи тестове повідомлення для sandbox..."
+              placeholder="Type a sandbox message..."
             />
 
             <div className="composer-actions">
@@ -365,7 +383,7 @@ export function SandboxShell() {
             <div className="panel-header">
               <div>
                 <p className="panel-kicker">Settings</p>
-                <h2>Сесія та конфігурація</h2>
+                <h2>Session and config</h2>
               </div>
               <span className="panel-note">localStorage + API</span>
             </div>
@@ -389,7 +407,7 @@ export function SandboxShell() {
               </label>
 
               <label className="field">
-                <span>Ім'я клієнта</span>
+                <span>Client name</span>
                 <input
                   value={session.contactName}
                   onChange={(event) => updateField("contactName", event.target.value)}
@@ -408,9 +426,7 @@ export function SandboxShell() {
                 <span>Persona</span>
                 <select
                   value={session.persona}
-                  onChange={(event) =>
-                    updateField("persona", event.target.value as PersonaOption)
-                  }
+                  onChange={(event) => updateField("persona", event.target.value as PersonaOption)}
                 >
                   {Object.entries(personaLabels).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -426,7 +442,7 @@ export function SandboxShell() {
                   onChange={(event) => updateField("debugPayload", event.target.checked)}
                   type="checkbox"
                 />
-                <span>Увімкнути raw payload у відповіді</span>
+                <span>Include raw payload in debug output</span>
               </label>
             </div>
           </section>
@@ -435,7 +451,7 @@ export function SandboxShell() {
             <div className="panel-header">
               <div>
                 <p className="panel-kicker">Scenarios</p>
-                <h2>Швидкі напрямки тестування</h2>
+                <h2>Quick test paths</h2>
               </div>
             </div>
 
@@ -443,7 +459,7 @@ export function SandboxShell() {
               {quickScenarios.map((scenario) => (
                 <div key={scenario} className="scenario-item">
                   <strong>{scenario}</strong>
-                  <span>Можемо далі перетворити це на кнопки-шаблони.</span>
+                  <span>We can turn this into scripted buttons later.</span>
                 </div>
               ))}
             </div>
@@ -453,7 +469,7 @@ export function SandboxShell() {
             <div className="panel-header">
               <div>
                 <p className="panel-kicker">Raw Payload</p>
-                <h2>Останній debug output</h2>
+                <h2>Last debug output</h2>
               </div>
             </div>
 
@@ -465,65 +481,77 @@ export function SandboxShell() {
           <div className="panel-header">
             <div>
               <p className="panel-kicker">Tool Trace</p>
-              <h2>Живий журнал інструментів</h2>
+              <h2>Live activity</h2>
             </div>
           </div>
 
           <div className="trace-list">
             {toolCalls.length ? (
               toolCalls.slice(0, 8).map((item) => (
-                <div key={item.id} className="trace-item">
-                  <span className={`trace-dot${item.status === "error" ? " error" : ""}`} />
-                  <div>
+                <div key={item.id} className="list-row">
+                  <div className="list-row-main">
+                    <span className={`tone-pill ${item.status === "error" ? "red" : "green"}`} />
                     <strong>{item.toolName}</strong>
-                    <p>
-                      {item.status === "error" ? "Помилка" : "Успіх"} ·{" "}
-                      {new Date(item.timestamp).toLocaleTimeString("uk-UA", {
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })}
-                    </p>
+                    <span className="row-text">{item.status}</span>
                   </div>
+                  <span className="row-meta">{formatTime(item.timestamp)}</span>
                 </div>
               ))
             ) : (
-              <div className="empty-state">Tool trace з’явиться після перших tool calls.</div>
+              <div className="empty-state">Tool trace will appear after the first tool calls.</div>
             )}
           </div>
 
           <div className="trace-section">
             <div className="mini-panel-header">
               <h3>Signals</h3>
-              <span className="panel-note">{reviews.length} reviews</span>
+              <span className="panel-note">
+                {reviews.length} reviews · {sources.dialogReviews}
+              </span>
             </div>
 
             <div className="review-list">
               {reviews.length ? (
                 reviews.slice(0, 6).map((review) => (
-                  <div key={review.id} className={`review-card ${review.severity}`}>
-                    <div className="entity-card-row">
+                  <div key={review.id} className="list-row">
+                    <div className="list-row-main">
+                      <span className={`tone-pill ${review.severity}`} />
                       <strong>{review.severity.toUpperCase()}</strong>
-                      <span className="panel-note">
-                        {new Date(review.timestamp).toLocaleTimeString("uk-UA", {
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        })}
-                      </span>
+                      <span className="row-text">{review.triggerReasons.join(", ")}</span>
                     </div>
-                    <p>{review.triggerReasons.join(", ")}</p>
+                    <span className="row-meta">{formatTime(review.timestamp)}</span>
                   </div>
                 ))
               ) : (
-                <div className="empty-state">Поки немає green/yellow/red сигналів.</div>
+                <div className="empty-state">No green/yellow/red signals for this contact yet.</div>
               )}
             </div>
           </div>
 
-          <div className="status-box">
-            <span className="status-label">Next</span>
-            <p>
-              Тут тепер видно і tool activity, і review-сигнали по поточному контакту.
-            </p>
+          <div className="trace-section">
+            <div className="mini-panel-header">
+              <h3>Event Log</h3>
+              <span className="panel-note">
+                {messagesLog.length} rows · {sources.messagesLog}
+              </span>
+            </div>
+
+            <div className="event-log">
+              {events.length ? (
+                events.slice(0, 12).map((item) => (
+                  <div key={item.id} className="list-row">
+                    <div className="list-row-main">
+                      <span className={`tone-pill ${item.tone ?? "neutral"}`} />
+                      <strong>{item.title}</strong>
+                      <span className="row-text">{item.detail}</span>
+                    </div>
+                    <span className="row-meta">{formatTime(item.timestamp)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state">Event log will appear after the first dialog steps.</div>
+              )}
+            </div>
           </div>
         </aside>
       </section>

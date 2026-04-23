@@ -87,6 +87,11 @@ export type MessageLogRecord = {
   provider: string;
   payload: Record<string, unknown>;
   timestamp: number;
+  userMessage?: string;
+  agentReply?: string;
+  service?: string;
+  deliveryStatus?: string;
+  httpStatus?: number;
 };
 
 export type ReviewSeverity = "green" | "yellow" | "red";
@@ -105,6 +110,21 @@ export type DialogReviewRecord = {
   timestamp: number;
 };
 
+export type ObservabilityEventKind = "message" | "tool" | "review" | "escalation";
+
+export type ObservabilityEventRecord = {
+  id: string;
+  kind: ObservabilityEventKind;
+  contactId?: string;
+  timestamp: number;
+  title: string;
+  detail: string;
+  tone?: ReviewSeverity | "neutral";
+  meta?: string;
+};
+
+export type SnapshotSource = "local" | "supabase" | "merged";
+
 export type ObservabilitySnapshot = {
   toolCalls: ToolTraceRecord[];
   messagesLog: MessageLogRecord[];
@@ -112,6 +132,11 @@ export type ObservabilitySnapshot = {
   clients: ClientRecord[];
   bookings: BookingRecord[];
   escalations: EscalationRecord[];
+  events: ObservabilityEventRecord[];
+  sources: {
+    messagesLog: SnapshotSource;
+    dialogReviews: SnapshotSource;
+  };
 };
 
 export type AdminSnapshot = {

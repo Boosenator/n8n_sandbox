@@ -460,6 +460,72 @@ a {
   border: 1px solid var(--stroke);
 }
 
+.flat-list,
+.event-log {
+  display: grid;
+  gap: 6px;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.list-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.row-text {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.tone-pill {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.tone-pill.green {
+  background: #16a34a;
+}
+
+.tone-pill.yellow {
+  background: #d97706;
+}
+
+.tone-pill.red {
+  background: #dc2626;
+}
+
+.tone-pill.neutral {
+  background: #94a3b8;
+}
+
 .trace-dot {
   width: 12px;
   height: 12px;

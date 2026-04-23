@@ -5,6 +5,7 @@ import {
   ClientRecord,
   DialogReviewRecord,
   EscalationRecord,
+  ObservabilityEventRecord,
   MessageLogRecord,
   ObservabilitySnapshot,
   SandboxMessage,
@@ -249,19 +250,73 @@ export function getObservabilitySnapshot(contactId?: string): ObservabilitySnaps
   const matchContact = <T extends { contactId?: string }>(items: T[]) =>
     contactId ? items.filter((item) => item.contactId === contactId) : items;
 
+  const toolCalls = matchContact(state.toolCalls);
+  const messagesLog = contactId
+    ? state.messagesLog.filter((item) => item.contactId === contactId)
+    : state.messagesLog;
+  const dialogReviews = contactId
+    ? state.dialogReviews.filter((item) => item.contactId === contactId)
+    : state.dialogReviews;
+  const scopedEscalations = contactId
+    ? escalations.filter((item) => item.contactId === contactId)
+    : escalations;
+
+  const events: ObservabilityEventRecord[] = [
+    ...messagesLog.map((item) => ({
+      id: `msg-${item.id}`,
+      kind: "message" as const,
+      contactId: item.contactId,
+      timestamp: item.timestamp,
+      title: `${item.direction} ${item.service ?? item.channel}`,
+      detail: item.agentReply ?? item.userMessage ?? item.text,
+      tone: "neutral" as const,
+      meta: item.provider
+    })),
+    ...toolCalls.map((item) => ({
+      id: `tool-${item.id}`,
+      kind: "tool" as const,
+      contactId: item.contactId,
+      timestamp: item.timestamp,
+      title: item.toolName,
+      detail: item.status === "error" ? "Tool call failed" : "Tool call completed",
+      tone: item.status === "error" ? ("red" as const) : ("neutral" as const),
+      meta: item.status
+    })),
+    ...dialogReviews.map((item) => ({
+      id: `review-${item.id}`,
+      kind: "review" as const,
+      contactId: item.contactId,
+      timestamp: item.timestamp,
+      title: item.severity.toUpperCase(),
+      detail: item.triggerReasons.join(", "),
+      tone: item.severity,
+      meta: `confidence ${item.confidenceScore.toFixed(2)}`
+    })),
+    ...scopedEscalations.map((item) => ({
+      id: `escalation-${item.id}`,
+      kind: "escalation" as const,
+      contactId: item.contactId,
+      timestamp: item.timestamp,
+      title: item.reason,
+      detail: item.context || "Escalation requested",
+      tone: "red" as const
+    }))
+  ]
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .slice(0, 200);
+
   return {
-    toolCalls: matchContact(state.toolCalls),
-    messagesLog: contactId
-      ? state.messagesLog.filter((item) => item.contactId === contactId)
-      : state.messagesLog,
-    dialogReviews: contactId
-      ? state.dialogReviews.filter((item) => item.contactId === contactId)
-      : state.dialogReviews,
+    toolCalls,
+    messagesLog,
+    dialogReviews,
     clients: structuredClone(state.clients),
     bookings: structuredClone(state.bookings),
-    escalations: contactId
-      ? escalations.filter((item) => item.contactId === contactId)
-      : escalations
+    escalations: scopedEscalations,
+    events,
+    sources: {
+      messagesLog: "local",
+      dialogReviews: "local"
+    }
   };
 }
 

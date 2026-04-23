@@ -6,7 +6,10 @@ import {
   ClientRecord,
   DialogReviewRecord,
   EscalationRecord,
+  MessageLogRecord,
+  ObservabilityEventRecord,
   ServiceItem,
+  SnapshotSource,
   StaffMember,
   ToolTraceRecord
 } from "@/lib/types";
@@ -17,12 +20,12 @@ const tabs: Array<{ id: AdminTab; title: string; description: string }> = [
   {
     id: "staff",
     title: "Staff",
-    description: "Майстри, активність, ролі, сервісні зв'язки."
+    description: "Masters, roles, activity and service links."
   },
   {
     id: "services",
     title: "Services",
-    description: "Послуги, тривалість, ціни і доступність."
+    description: "Catalog, duration, prices and availability."
   }
 ];
 
@@ -43,6 +46,13 @@ const emptyServiceForm = {
   active: true
 };
 
+function formatTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString("uk-UA", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 export function AdminOverview() {
   const [activeTab, setActiveTab] = useState<AdminTab>("staff");
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -55,8 +65,17 @@ export function AdminOverview() {
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolTraceRecord[]>([]);
+  const [messagesLog, setMessagesLog] = useState<MessageLogRecord[]>([]);
+  const [events, setEvents] = useState<ObservabilityEventRecord[]>([]);
   const [dialogReviews, setDialogReviews] = useState<DialogReviewRecord[]>([]);
   const [escalations, setEscalations] = useState<EscalationRecord[]>([]);
+  const [sources, setSources] = useState<{
+    messagesLog: SnapshotSource;
+    dialogReviews: SnapshotSource;
+  }>({
+    messagesLog: "local",
+    dialogReviews: "local"
+  });
 
   const serviceOptions = useMemo(
     () => services.map((service) => ({ id: service.id, label: service.name })),
@@ -87,34 +106,48 @@ export function AdminOverview() {
           clients?: ClientRecord[];
           bookings?: BookingRecord[];
           toolCalls?: ToolTraceRecord[];
+          messagesLog?: MessageLogRecord[];
+          events?: ObservabilityEventRecord[];
           dialogReviews?: DialogReviewRecord[];
           escalations?: EscalationRecord[];
+          sources?: {
+            messagesLog: SnapshotSource;
+            dialogReviews: SnapshotSource;
+          };
         };
       };
 
       if (!staffResponse.ok) {
-        throw new Error(staffData.error ?? "Не вдалося отримати staff");
+        throw new Error(staffData.error ?? "Failed to load staff");
       }
 
       if (!servicesResponse.ok) {
-        throw new Error(servicesData.error ?? "Не вдалося отримати services");
+        throw new Error(servicesData.error ?? "Failed to load services");
       }
 
       if (!observabilityResponse.ok) {
-        throw new Error("Не вдалося отримати observability snapshot");
+        throw new Error("Failed to load observability snapshot");
       }
 
       setStaff(staffData.items ?? []);
       setServices(servicesData.items ?? []);
-      if (observabilityData?.snapshot) {
+      if (observabilityData.snapshot) {
         setClients(observabilityData.snapshot.clients ?? []);
         setBookings(observabilityData.snapshot.bookings ?? []);
         setToolCalls(observabilityData.snapshot.toolCalls ?? []);
+        setMessagesLog(observabilityData.snapshot.messagesLog ?? []);
+        setEvents(observabilityData.snapshot.events ?? []);
         setDialogReviews(observabilityData.snapshot.dialogReviews ?? []);
         setEscalations(observabilityData.snapshot.escalations ?? []);
+        setSources(
+          observabilityData.snapshot.sources ?? {
+            messagesLog: "local",
+            dialogReviews: "local"
+          }
+        );
       }
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Помилка завантаження");
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to load admin data");
     } finally {
       setLoading(false);
     }
@@ -129,7 +162,7 @@ export function AdminOverview() {
       const data = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Не вдалося виконати seed");
+        throw new Error(data.error ?? "Failed to seed defaults");
       }
 
       await loadAll();
@@ -151,7 +184,7 @@ export function AdminOverview() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error("Не вдалося експортувати snapshot");
+        throw new Error("Failed to export snapshot");
       }
 
       window.navigator.clipboard.writeText(JSON.stringify(data.snapshot, null, 2)).catch(() => {
@@ -179,7 +212,7 @@ export function AdminOverview() {
       const data = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Не вдалося зберегти staff");
+        throw new Error(data.error ?? "Failed to save staff");
       }
 
       await loadAll();
@@ -206,7 +239,7 @@ export function AdminOverview() {
       const data = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Не вдалося зберегти service");
+        throw new Error(data.error ?? "Failed to save service");
       }
 
       await loadAll();
@@ -298,8 +331,8 @@ export function AdminOverview() {
             </div>
             <span className="panel-note">
               {activeTab === "staff"
-                ? "Майстри, ролі, active, service links"
-                : "Каталог послуг, тривалість, ціни"}
+                ? "Masters, roles, active flags and service links"
+                : "Catalog, duration and base price"}
             </span>
           </div>
 
@@ -320,7 +353,7 @@ export function AdminOverview() {
                         </span>
                       </div>
                       <p>{item.role}</p>
-                      <p>{item.notes || "Без нотаток"}</p>
+                      <p>{item.notes || "No notes"}</p>
                       <div className="entity-card-row">
                         <button
                           className="secondary-button"
@@ -362,7 +395,7 @@ export function AdminOverview() {
                 <div className="settings-form single-column">
                   <div className="compact-form-grid">
                     <label className="field">
-                      <span>Ім'я</span>
+                      <span>Name</span>
                       <input
                         value={staffForm.name}
                         onChange={(event) =>
@@ -371,7 +404,7 @@ export function AdminOverview() {
                       />
                     </label>
                     <label className="field">
-                      <span>Роль</span>
+                      <span>Role</span>
                       <input
                         value={staffForm.role}
                         onChange={(event) =>
@@ -381,7 +414,7 @@ export function AdminOverview() {
                     </label>
                   </div>
                   <label className="field">
-                    <span>Нотатки</span>
+                    <span>Notes</span>
                     <textarea
                       className="form-textarea"
                       rows={4}
@@ -399,10 +432,10 @@ export function AdminOverview() {
                       }
                       type="checkbox"
                     />
-                    <span>Активний майстер</span>
+                    <span>Active master</span>
                   </label>
                   <div className="field">
-                    <span>Послуги</span>
+                    <span>Services</span>
                     <div className="check-grid">
                       {serviceOptions.map((service) => {
                         const checked = staffForm.serviceIds.includes(service.id);
@@ -463,8 +496,8 @@ export function AdminOverview() {
                           {item.active ? "active" : "off"}
                         </span>
                       </div>
-                      <p>{item.durationMinutes} хв</p>
-                      <p>від {item.priceFrom} грн</p>
+                      <p>{item.durationMinutes} min</p>
+                      <p>from {item.priceFrom} UAH</p>
                       <div className="entity-card-row">
                         <button
                           className="secondary-button"
@@ -505,7 +538,7 @@ export function AdminOverview() {
                 <div className="settings-form single-column">
                   <div className="compact-form-grid compact-form-grid-3">
                     <label className="field">
-                      <span>Назва</span>
+                      <span>Name</span>
                       <input
                         value={serviceForm.name}
                         onChange={(event) =>
@@ -514,7 +547,7 @@ export function AdminOverview() {
                       />
                     </label>
                     <label className="field">
-                      <span>Тривалість, хв</span>
+                      <span>Duration</span>
                       <input
                         type="number"
                         value={serviceForm.durationMinutes}
@@ -527,7 +560,7 @@ export function AdminOverview() {
                       />
                     </label>
                     <label className="field">
-                      <span>Ціна від</span>
+                      <span>Price from</span>
                       <input
                         type="number"
                         value={serviceForm.priceFrom}
@@ -548,7 +581,7 @@ export function AdminOverview() {
                       }
                       type="checkbox"
                     />
-                    <span>Послуга активна</span>
+                    <span>Service is active</span>
                   </label>
                   <div className="composer-actions">
                     <button
@@ -578,9 +611,7 @@ export function AdminOverview() {
             <div>
               <h2>Observability</h2>
             </div>
-            <span className="panel-note">
-              Clients, bookings, tool trace, dialog reviews, escalations
-            </span>
+            <span className="panel-note">Compact rows for logs, reviews, bookings and clients</span>
           </div>
 
           <div className="admin-observability-grid">
@@ -589,15 +620,16 @@ export function AdminOverview() {
                 <h3>Clients</h3>
                 <span className="panel-note">{clients.length}</span>
               </div>
-              <div className="entity-list compact-entity-list">
+              <div className="flat-list compact-entity-list">
                 {clients.slice(0, 8).map((client) => (
-                  <div key={client.id} className="entity-card">
-                    <div className="entity-card-row">
+                  <div key={client.id} className="list-row">
+                    <div className="list-row-main">
                       <strong>{client.name}</strong>
-                      <span className="panel-note">{client.visitCount} visits</span>
+                      <span className="row-text">
+                        {client.phone} · {client.tags.join(", ") || "no tags"}
+                      </span>
                     </div>
-                    <p>{client.phone}</p>
-                    <p>{client.tags.join(", ") || "Без тегів"}</p>
+                    <span className="row-meta">{client.visitCount} visits</span>
                   </div>
                 ))}
               </div>
@@ -608,17 +640,18 @@ export function AdminOverview() {
                 <h3>Bookings</h3>
                 <span className="panel-note">{bookings.length}</span>
               </div>
-              <div className="entity-list compact-entity-list">
+              <div className="flat-list compact-entity-list">
                 {bookings.slice(0, 8).map((booking) => (
-                  <div key={booking.id} className="entity-card">
-                    <div className="entity-card-row">
+                  <div key={booking.id} className="list-row">
+                    <div className="list-row-main">
                       <strong>{booking.clientName}</strong>
-                      <span className={`status-badge${booking.status === "confirmed" ? " on" : ""}`}>
-                        {booking.status}
+                      <span className="row-text">
+                        {booking.datetime} · {booking.source}
                       </span>
                     </div>
-                    <p>{booking.datetime}</p>
-                    <p>{booking.source}</p>
+                    <span className={`status-badge${booking.status === "confirmed" ? " on" : ""}`}>
+                      {booking.status}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -627,17 +660,21 @@ export function AdminOverview() {
             <div className="mini-panel compact-panel-shell">
               <div className="mini-panel-header">
                 <h3>Dialog Reviews</h3>
-                <span className="panel-note">{dialogReviews.length}</span>
+                <span className="panel-note">
+                  {dialogReviews.length} · {sources.dialogReviews}
+                </span>
               </div>
-              <div className="review-list compact-entity-list">
+              <div className="flat-list compact-entity-list">
                 {dialogReviews.slice(0, 8).map((review) => (
-                  <div key={review.id} className={`review-card ${review.severity}`}>
-                    <div className="entity-card-row">
+                  <div key={review.id} className="list-row">
+                    <div className="list-row-main">
+                      <span className={`tone-pill ${review.severity}`} />
                       <strong>{review.severity.toUpperCase()}</strong>
-                      <span className="panel-note">{review.contactId}</span>
+                      <span className="row-text">
+                        {review.contactId || "no contact"} · {review.triggerReasons.join(", ")}
+                      </span>
                     </div>
-                    <p>{review.triggerReasons.join(", ")}</p>
-                    <p>confidence {review.confidenceScore.toFixed(2)}</p>
+                    <span className="row-meta">c {review.confidenceScore.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -648,16 +685,65 @@ export function AdminOverview() {
                 <h3>Tool Trace</h3>
                 <span className="panel-note">{toolCalls.length}</span>
               </div>
-              <div className="entity-list compact-entity-list">
+              <div className="flat-list compact-entity-list">
                 {toolCalls.slice(0, 8).map((tool) => (
-                  <div key={tool.id} className="entity-card">
-                    <div className="entity-card-row">
+                  <div key={tool.id} className="list-row">
+                    <div className="list-row-main">
+                      <span className={`tone-pill ${tool.status === "error" ? "red" : "green"}`} />
                       <strong>{tool.toolName}</strong>
-                      <span className={`status-badge${tool.status === "success" ? " on" : ""}`}>
-                        {tool.status}
+                      <span className="row-text">{tool.contactId || "global"}</span>
+                    </div>
+                    <span className="row-meta">{tool.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Messages Log</h3>
+                <span className="panel-note">
+                  {messagesLog.length} · {sources.messagesLog}
+                </span>
+              </div>
+              <div className="flat-list compact-entity-list">
+                {messagesLog.slice(0, 10).map((item) => (
+                  <div key={item.id} className="list-row">
+                    <div className="list-row-main">
+                      <span
+                        className={`tone-pill ${
+                          item.direction === "incoming"
+                            ? "neutral"
+                            : item.direction === "outgoing"
+                              ? "green"
+                              : "yellow"
+                        }`}
+                      />
+                      <strong>{item.direction}</strong>
+                      <span className="row-text">
+                        {item.agentReply ?? item.userMessage ?? item.text}
                       </span>
                     </div>
-                    <p>{tool.contactId || "global"}</p>
+                    <span className="row-meta">{formatTime(item.timestamp)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Event Log</h3>
+                <span className="panel-note">{events.length}</span>
+              </div>
+              <div className="flat-list compact-entity-list">
+                {events.slice(0, 12).map((item) => (
+                  <div key={item.id} className="list-row">
+                    <div className="list-row-main">
+                      <span className={`tone-pill ${item.tone ?? "neutral"}`} />
+                      <strong>{item.title}</strong>
+                      <span className="row-text">{item.detail}</span>
+                    </div>
+                    <span className="row-meta">{formatTime(item.timestamp)}</span>
                   </div>
                 ))}
               </div>
@@ -668,14 +754,17 @@ export function AdminOverview() {
                 <h3>Escalations</h3>
                 <span className="panel-note">{escalations.length}</span>
               </div>
-              <div className="entity-list compact-entity-list">
+              <div className="flat-list compact-entity-list">
                 {escalations.slice(0, 8).map((item) => (
-                  <div key={item.id} className="entity-card">
-                    <div className="entity-card-row">
+                  <div key={item.id} className="list-row">
+                    <div className="list-row-main">
+                      <span className="tone-pill red" />
                       <strong>{item.reason}</strong>
-                      <span className="panel-note">{item.contactId}</span>
+                      <span className="row-text">
+                        {item.contactId} · {item.context || "No context"}
+                      </span>
                     </div>
-                    <p>{item.context || "Без контексту"}</p>
+                    <span className="row-meta">{formatTime(item.timestamp)}</span>
                   </div>
                 ))}
               </div>
