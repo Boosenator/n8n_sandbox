@@ -1,0 +1,368 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f5efe4;
+  --surface: rgba(255, 252, 246, 0.78);
+  --surface-strong: #fffaf0;
+  --stroke: rgba(98, 72, 39, 0.16);
+  --text: #23180d;
+  --muted: #71573e;
+  --accent: #c66b3d;
+  --accent-soft: rgba(198, 107, 61, 0.12);
+  --olive: #5e6f52;
+  --shadow: 0 24px 70px rgba(61, 41, 18, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(255, 219, 177, 0.72), transparent 28%),
+    radial-gradient(circle at top right, rgba(160, 188, 152, 0.32), transparent 24%),
+    linear-gradient(180deg, #f7f1e7 0%, #f1e5d4 100%);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.shell {
+  width: min(1440px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0 40px;
+}
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--stroke);
+  border-radius: 24px;
+  background: rgba(255, 249, 240, 0.72);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand strong {
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand span,
+.nav-link {
+  color: var(--muted);
+}
+
+.nav-links {
+  display: flex;
+  gap: 10px;
+}
+
+.nav-link {
+  padding: 10px 14px;
+  border-radius: 999px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+  gap: 24px;
+  margin-top: 24px;
+  padding: 28px;
+  border: 1px solid var(--stroke);
+  border-radius: 32px;
+  background: linear-gradient(135deg, rgba(255, 250, 242, 0.92), rgba(247, 237, 222, 0.72));
+  box-shadow: var(--shadow);
+}
+
+.hero.compact {
+  grid-template-columns: 1fr;
+}
+
+.eyebrow,
+.panel-kicker,
+.stat-label {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.panel h2,
+.mini-panel h2,
+.mini-panel h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 3vw, 3.4rem);
+  line-height: 1.02;
+  max-width: 11ch;
+}
+
+.hero-copy {
+  max-width: 62ch;
+  margin: 16px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.hero-stats {
+  display: grid;
+  gap: 12px;
+}
+
+.stat-card,
+.panel,
+.mini-panel {
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow);
+}
+
+.stat-card {
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.2fr) minmax(360px, 1.4fr) minmax(260px, 0.9fr);
+  gap: 20px;
+  margin-top: 24px;
+  align-items: start;
+}
+
+.center-column {
+  display: grid;
+  gap: 20px;
+}
+
+.panel {
+  border-radius: 28px;
+  padding: 20px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.86rem;
+}
+
+.messages-placeholder {
+  display: grid;
+  gap: 12px;
+  min-height: 420px;
+  padding: 18px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 248, 236, 0.9), rgba(248, 240, 226, 0.62));
+}
+
+.message {
+  max-width: 85%;
+  padding: 14px 16px;
+  border-radius: 22px;
+}
+
+.message p,
+.trace-item p,
+.mini-panel p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.message-author {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.message-salon {
+  background: #fff6ea;
+  border: 1px solid rgba(198, 107, 61, 0.16);
+}
+
+.message-client {
+  justify-self: end;
+  background: #dde9d6;
+  border: 1px solid rgba(94, 111, 82, 0.18);
+}
+
+.composer-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--surface-strong);
+  border: 1px solid var(--stroke);
+}
+
+.composer-placeholder span {
+  color: var(--muted);
+}
+
+.composer-placeholder button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(35, 24, 13, 0.12);
+  color: rgba(35, 24, 13, 0.45);
+}
+
+.settings-grid,
+.admin-columns,
+.chips,
+.trace-list {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.setting-box,
+.chip {
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 250, 242, 0.84);
+}
+
+.setting-box span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.chips {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chip {
+  background: linear-gradient(135deg, rgba(255, 246, 236, 1), rgba(247, 233, 216, 0.84));
+}
+
+.admin-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-columns.single-row {
+  margin-top: 24px;
+}
+
+.mini-panel {
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.mini-panel.tall {
+  min-height: 260px;
+}
+
+.trace-item {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 250, 242, 0.84);
+  border: 1px solid var(--stroke);
+}
+
+.trace-dot {
+  width: 12px;
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--olive);
+  box-shadow: 0 0 0 4px rgba(94, 111, 82, 0.14);
+}
+
+@media (max-width: 1180px) {
+  .workspace,
+  .hero,
+  .admin-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1 {
+    max-width: unset;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    width: min(100% - 20px, 1440px);
+    padding-top: 16px;
+  }
+
+  .top-nav,
+  .panel-header,
+  .composer-placeholder {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav-links,
+  .settings-grid,
+  .chips {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-links {
+    display: grid;
+  }
+}
