@@ -1,28 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-
-type PersonaOption = "new_client" | "returning" | "vip" | "complaint";
-
-type Message = {
-  id: number;
-  author: "client" | "salon";
-  text: string;
-  time: string;
-};
-
-type SessionState = {
-  webhookUrl: string;
-  contactId: string;
-  contactName: string;
-  contactUsername: string;
-  persona: PersonaOption;
-  debugPayload: boolean;
-};
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { PersonaOption, SandboxMessage, SessionPayload } from "@/lib/types";
 
 const storageKey = "vangel-sandbox-session";
 
-const initialSession: SessionState = {
+const initialSession: SessionPayload = {
   webhookUrl: "",
   contactId: "SANDBOX_TEST_0001",
   contactName: "Тестовий клієнт",
@@ -30,21 +13,6 @@ const initialSession: SessionState = {
   persona: "new_client",
   debugPayload: false
 };
-
-const initialMessages: Message[] = [
-  {
-    id: 1,
-    author: "salon",
-    text: "Сюди пізніше підключимо відповіді з n8n. Поки це локальний sandbox-потік.",
-    time: "09:00"
-  },
-  {
-    id: 2,
-    author: "client",
-    text: "Можна набирати повідомлення і перевіряти базовий ритм інтерфейсу.",
-    time: "09:01"
-  }
-];
 
 const quickScenarios = [
   "Перший контакт",
@@ -58,19 +26,19 @@ const quickScenarios = [
 const traceItems = [
   {
     title: "list_services()",
-    note: "Піде першим кроком, коли підключимо mock-altegio."
+    note: "Піде першим кроком, коли n8n запросить каталог послуг."
   },
   {
     title: "list_staff()",
-    note: "Використаємо для фільтрації майстрів по послугах."
+    note: "Дає фільтр майстрів під конкретну послугу."
   },
   {
     title: "get_available_slots()",
-    note: "Стане джерелом слотів із mock admin."
+    note: "Наступний блок після живого mock admin state."
   },
   {
     title: "create_booking()",
-    note: "Поки це тільки майбутній хендлер."
+    note: "Фінальний крок після вибору слоту."
   }
 ];
 
@@ -82,17 +50,31 @@ const personaLabels: Record<PersonaOption, string> = {
 };
 
 export function SandboxShell() {
-  const [session, setSession] = useState<SessionState>(initialSession);
+  const [session, setSession] = useState<SessionPayload>(initialSession);
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<SandboxMessage[]>([]);
   const [ready, setReady] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [lastPayload, setLastPayload] = useState<string>("");
+  const [lastStatus, setLastStatus] = useState<string>("idle");
+  const [error, setError] = useState<string>("");
+  const lastTimestampRef = useRef<number | undefined>(undefined);
+
+  const prettyPayload = useMemo(() => {
+    if (!lastPayload) {
+      return "Поки payload ще не згенеровано.";
+    }
+
+    return lastPayload;
+  }, [lastPayload]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(storageKey);
 
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as SessionState;
+        const parsed = JSON.parse(stored) as SessionPayload;
         setSession({ ...initialSession, ...parsed });
       } catch {
         window.localStorage.removeItem(storageKey);
@@ -110,14 +92,84 @@ export function SandboxShell() {
     window.localStorage.setItem(storageKey, JSON.stringify(session));
   }, [ready, session]);
 
-  function updateField<K extends keyof SessionState>(field: K, value: SessionState[K]) {
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    lastTimestampRef.current = undefined;
+    void loadMessages();
+  }, [ready, session.contactId]);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void pollMessages();
+    }, 2500);
+
+    return () => window.clearInterval(timer);
+  }, [ready, session.contactId]);
+
+  function updateField<K extends keyof SessionPayload>(field: K, value: SessionPayload[K]) {
     setSession((current) => ({
       ...current,
       [field]: value
     }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function loadMessages() {
+    setLoadingMessages(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/sandbox/messages?contact_id=${encodeURIComponent(session.contactId)}`,
+        { cache: "no-store" }
+      );
+      const data = (await response.json()) as { items?: SandboxMessage[]; error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Не вдалося завантажити повідомлення");
+      }
+
+      const items = data.items ?? [];
+      setMessages(items);
+      lastTimestampRef.current = items.at(-1)?.timestamp;
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : "Помилка завантаження повідомлень"
+      );
+    } finally {
+      setLoadingMessages(false);
+    }
+  }
+
+  async function pollMessages() {
+    try {
+      const suffix = lastTimestampRef.current
+        ? `&since=${lastTimestampRef.current}`
+        : "";
+      const response = await fetch(
+        `/api/sandbox/messages?contact_id=${encodeURIComponent(session.contactId)}${suffix}`,
+        { cache: "no-store" }
+      );
+      const data = (await response.json()) as { items?: SandboxMessage[] };
+
+      if (!response.ok || !data.items?.length) {
+        return;
+      }
+
+      setMessages((current) => [...current, ...data.items!]);
+      lastTimestampRef.current = data.items.at(-1)?.timestamp;
+    } catch {
+      // Ignore polling errors to keep the UI calm.
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const text = draft.trim();
@@ -126,23 +178,68 @@ export function SandboxShell() {
       return;
     }
 
-    setMessages((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        author: "client",
-        text,
-        time: new Date().toLocaleTimeString("uk-UA", {
-          hour: "2-digit",
-          minute: "2-digit"
+    setSending(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/send-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...session,
+          text
         })
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+        payload?: unknown;
+        webhookStatus?: string;
+      };
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Не вдалося відправити повідомлення");
       }
-    ]);
-    setDraft("");
+
+      setDraft("");
+      setLastStatus(data.webhookStatus ?? "unknown");
+      setLastPayload(data.payload ? JSON.stringify(data.payload, null, 2) : "");
+      await loadMessages();
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : "Помилка відправки повідомлення"
+      );
+    } finally {
+      setSending(false);
+    }
   }
 
-  function resetConversation() {
-    setMessages(initialMessages);
+  async function resetConversation() {
+    setError("");
+
+    try {
+      const response = await fetch("/api/sandbox/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contactId: session.contactId
+        })
+      });
+      const data = (await response.json()) as { ok?: boolean; error?: string };
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Не вдалося очистити історію");
+      }
+
+      setMessages([]);
+      lastTimestampRef.current = undefined;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Помилка reset");
+    }
   }
 
   return (
@@ -150,26 +247,26 @@ export function SandboxShell() {
       <section className="hero hero-tight">
         <div>
           <p className="eyebrow">VAngel Sandbox</p>
-          <h1>Робочий каркас для чату, сесії та mock admin</h1>
+          <h1>Робочий зріз із реальним chat API і polling</h1>
           <p className="hero-copy">
-            Інтерфейс став спокійнішим і ближчим до внутрішнього тестового
-            інструмента. Уже є локальний composer, налаштування сесії та база
-            для наступного підключення API.
+            Чат уже ходить у route handlers, тримає сесію локально, вміє
+            скидати історію і показує mock-відповіді, якщо webhook ще не
+            підключений.
           </p>
         </div>
 
         <div className="hero-stats compact-stats">
           <div className="stat-card">
             <span className="stat-label">Режим</span>
-            <strong>Local sandbox</strong>
+            <strong>{sending ? "Sending..." : "API wired"}</strong>
           </div>
           <div className="stat-card">
             <span className="stat-label">Контакт</span>
             <strong>{session.contactId}</strong>
           </div>
           <div className="stat-card">
-            <span className="stat-label">Persona</span>
-            <strong>{personaLabels[session.persona]}</strong>
+            <span className="stat-label">Webhook</span>
+            <strong>{lastStatus}</strong>
           </div>
         </div>
       </section>
@@ -184,29 +281,44 @@ export function SandboxShell() {
             <span className="pill neutral-pill">{messages.length} messages</span>
           </div>
 
+          {error ? <div className="alert-box">{error}</div> : null}
+
           <div className="messages-list">
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={`message-row ${
-                  message.author === "client" ? "client-row" : "salon-row"
-                }`}
-              >
-                <div
-                  className={`message ${
-                    message.author === "client" ? "message-client" : "message-salon"
+            {loadingMessages ? (
+              <div className="empty-state">Завантажую історію...</div>
+            ) : messages.length ? (
+              messages.map((message) => (
+                <article
+                  key={message.id}
+                  className={`message-row ${
+                    message.author === "client" ? "client-row" : "salon-row"
                   }`}
                 >
-                  <span className="message-author">
-                    {message.author === "client"
-                      ? session.contactName
-                      : "VAngel sandbox"}
-                  </span>
-                  <p>{message.text}</p>
-                  <time className="message-time">{message.time}</time>
-                </div>
-              </article>
-            ))}
+                  <div
+                    className={`message ${
+                      message.author === "client" ? "message-client" : "message-salon"
+                    }`}
+                  >
+                    <span className="message-author">
+                      {message.author === "client"
+                        ? session.contactName
+                        : message.author === "system"
+                          ? "System"
+                          : "VAngel sandbox"}
+                    </span>
+                    <p>{message.text}</p>
+                    <time className="message-time">
+                      {new Date(message.timestamp).toLocaleTimeString("uk-UA", {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </time>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">Історія порожня. Надішли перше повідомлення.</div>
+            )}
           </div>
 
           <form className="composer" onSubmit={handleSubmit}>
@@ -214,15 +326,15 @@ export function SandboxShell() {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               rows={3}
-              placeholder="Введи тестове повідомлення для локального потоку..."
+              placeholder="Введи тестове повідомлення для sandbox..."
             />
 
             <div className="composer-actions">
               <button type="button" className="secondary-button" onClick={resetConversation}>
                 Reset
               </button>
-              <button type="submit" className="primary-button">
-                Add message
+              <button type="submit" className="primary-button" disabled={sending}>
+                {sending ? "Sending..." : "Send"}
               </button>
             </div>
           </form>
@@ -235,7 +347,7 @@ export function SandboxShell() {
                 <p className="panel-kicker">Settings</p>
                 <h2>Сесія та конфігурація</h2>
               </div>
-              <span className="panel-note">Зберігається локально</span>
+              <span className="panel-note">localStorage + API</span>
             </div>
 
             <div className="settings-form">
@@ -294,7 +406,7 @@ export function SandboxShell() {
                   onChange={(event) => updateField("debugPayload", event.target.checked)}
                   type="checkbox"
                 />
-                <span>Увімкнути debug payload</span>
+                <span>Увімкнути raw payload у відповіді</span>
               </label>
             </div>
           </section>
@@ -311,7 +423,7 @@ export function SandboxShell() {
               {quickScenarios.map((scenario) => (
                 <div key={scenario} className="scenario-item">
                   <strong>{scenario}</strong>
-                  <span>Шаблон для наступного етапу автозаповнення.</span>
+                  <span>Можемо далі перетворити це на кнопки-шаблони.</span>
                 </div>
               ))}
             </div>
@@ -320,25 +432,12 @@ export function SandboxShell() {
           <section className="panel">
             <div className="panel-header">
               <div>
-                <p className="panel-kicker">Admin Preview</p>
-                <h2>Структура майбутньої адмінки</h2>
+                <p className="panel-kicker">Raw Payload</p>
+                <h2>Останній debug output</h2>
               </div>
             </div>
 
-            <div className="admin-columns">
-              <div className="mini-panel">
-                <h3>Staff</h3>
-                <p>CRUD майстрів і активних змін.</p>
-              </div>
-              <div className="mini-panel">
-                <h3>Services</h3>
-                <p>Каталог послуг і матриця прив'язок.</p>
-              </div>
-              <div className="mini-panel">
-                <h3>Schedule</h3>
-                <p>Блокування слотів, ручні бронювання, fixtures.</p>
-              </div>
-            </div>
+            <pre className="payload-box">{prettyPayload}</pre>
           </section>
         </div>
 
@@ -364,7 +463,10 @@ export function SandboxShell() {
 
           <div className="status-box">
             <span className="status-label">Next</span>
-            <p>Наступним кроком сюди заведемо реальний polling і сирі payload-и.</p>
+            <p>
+              Після живих `Staff` і `Services` можна заводити `get_available_slots`
+              та `create_booking`.
+            </p>
           </div>
         </aside>
       </section>
