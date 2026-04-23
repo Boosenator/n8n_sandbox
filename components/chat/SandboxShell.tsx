@@ -1,7 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { PersonaOption, SandboxMessage, SessionPayload } from "@/lib/types";
+import {
+  DialogReviewRecord,
+  PersonaOption,
+  SandboxMessage,
+  SessionPayload,
+  ToolTraceRecord
+} from "@/lib/types";
 
 const storageKey = "vangel-sandbox-session";
 
@@ -23,25 +29,6 @@ const quickScenarios = [
   "Ескалація до майстра"
 ];
 
-const traceItems = [
-  {
-    title: "list_services()",
-    note: "Піде першим кроком, коли n8n запросить каталог послуг."
-  },
-  {
-    title: "list_staff()",
-    note: "Дає фільтр майстрів під конкретну послугу."
-  },
-  {
-    title: "get_available_slots()",
-    note: "Наступний блок після живого mock admin state."
-  },
-  {
-    title: "create_booking()",
-    note: "Фінальний крок після вибору слоту."
-  }
-];
-
 const personaLabels: Record<PersonaOption, string> = {
   new_client: "New client",
   returning: "Returning",
@@ -59,6 +46,8 @@ export function SandboxShell() {
   const [lastPayload, setLastPayload] = useState<string>("");
   const [lastStatus, setLastStatus] = useState<string>("idle");
   const [error, setError] = useState<string>("");
+  const [toolCalls, setToolCalls] = useState<ToolTraceRecord[]>([]);
+  const [reviews, setReviews] = useState<DialogReviewRecord[]>([]);
   const lastTimestampRef = useRef<number | undefined>(undefined);
 
   const prettyPayload = useMemo(() => {
@@ -99,6 +88,7 @@ export function SandboxShell() {
 
     lastTimestampRef.current = undefined;
     void loadMessages();
+    void loadObservability();
   }, [ready, session.contactId]);
 
   useEffect(() => {
@@ -108,6 +98,7 @@ export function SandboxShell() {
 
     const timer = window.setInterval(() => {
       void pollMessages();
+      void pollObservability();
     }, 2500);
 
     return () => window.clearInterval(timer);
@@ -147,6 +138,30 @@ export function SandboxShell() {
     }
   }
 
+  async function loadObservability() {
+    try {
+      const response = await fetch(
+        `/api/admin/observability?contact_id=${encodeURIComponent(session.contactId)}`,
+        { cache: "no-store" }
+      );
+      const data = (await response.json()) as {
+        snapshot?: {
+          toolCalls?: ToolTraceRecord[];
+          dialogReviews?: DialogReviewRecord[];
+        };
+      };
+
+      if (!response.ok || !data.snapshot) {
+        return;
+      }
+
+      setToolCalls(data.snapshot.toolCalls ?? []);
+      setReviews(data.snapshot.dialogReviews ?? []);
+    } catch {
+      // Keep UI silent on trace refresh errors.
+    }
+  }
+
   async function pollMessages() {
     try {
       const suffix = lastTimestampRef.current
@@ -167,6 +182,10 @@ export function SandboxShell() {
     } catch {
       // Ignore polling errors to keep the UI calm.
     }
+  }
+
+  async function pollObservability() {
+    await loadObservability();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -207,6 +226,7 @@ export function SandboxShell() {
       setLastStatus(data.webhookStatus ?? "unknown");
       setLastPayload(data.payload ? JSON.stringify(data.payload, null, 2) : "");
       await loadMessages();
+      await loadObservability();
     } catch (caughtError) {
       setError(
         caughtError instanceof Error ? caughtError.message : "Помилка відправки повідомлення"
@@ -445,27 +465,64 @@ export function SandboxShell() {
           <div className="panel-header">
             <div>
               <p className="panel-kicker">Tool Trace</p>
-              <h2>Майбутній журнал інструментів</h2>
+              <h2>Живий журнал інструментів</h2>
             </div>
           </div>
 
           <div className="trace-list">
-            {traceItems.map((item) => (
-              <div key={item.title} className="trace-item">
-                <span className="trace-dot" />
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.note}</p>
+            {toolCalls.length ? (
+              toolCalls.slice(0, 8).map((item) => (
+                <div key={item.id} className="trace-item">
+                  <span className={`trace-dot${item.status === "error" ? " error" : ""}`} />
+                  <div>
+                    <strong>{item.toolName}</strong>
+                    <p>
+                      {item.status === "error" ? "Помилка" : "Успіх"} ·{" "}
+                      {new Date(item.timestamp).toLocaleTimeString("uk-UA", {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="empty-state">Tool trace з’явиться після перших tool calls.</div>
+            )}
+          </div>
+
+          <div className="trace-section">
+            <div className="mini-panel-header">
+              <h3>Signals</h3>
+              <span className="panel-note">{reviews.length} reviews</span>
+            </div>
+
+            <div className="review-list">
+              {reviews.length ? (
+                reviews.slice(0, 6).map((review) => (
+                  <div key={review.id} className={`review-card ${review.severity}`}>
+                    <div className="entity-card-row">
+                      <strong>{review.severity.toUpperCase()}</strong>
+                      <span className="panel-note">
+                        {new Date(review.timestamp).toLocaleTimeString("uk-UA", {
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
+                      </span>
+                    </div>
+                    <p>{review.triggerReasons.join(", ")}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state">Поки немає green/yellow/red сигналів.</div>
+              )}
+            </div>
           </div>
 
           <div className="status-box">
             <span className="status-label">Next</span>
             <p>
-              Після живих `Staff` і `Services` можна заводити `get_available_slots`
-              та `create_booking`.
+              Тут тепер видно і tool activity, і review-сигнали по поточному контакту.
             </p>
           </div>
         </aside>

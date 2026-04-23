@@ -3,7 +3,9 @@ import { buildSendPulsePayload } from "@/lib/sendpulse-payload";
 import {
   appendClientMessage,
   appendSalonMessage,
-  buildLocalReply
+  buildLocalReply,
+  logDialogReview,
+  logToolCall
 } from "@/lib/sandbox-store";
 import { SendMessageRequest } from "@/lib/types";
 
@@ -44,8 +46,29 @@ export async function POST(request: NextRequest) {
   }
 
   if (webhookStatus !== "sent") {
-    appendSalonMessage(normalized.contactId, buildLocalReply(normalized));
+    const reply = buildLocalReply(normalized);
+    appendSalonMessage(normalized.contactId, reply);
+    logDialogReview({
+      sessionId: normalized.contactId,
+      contactId: normalized.contactId,
+      userMessage: normalized.text,
+      agentReply: reply
+    });
   }
+
+  logToolCall({
+    toolName: "send_message",
+    status: webhookStatus === "failed" ? "error" : "success",
+    input: {
+      contactId: normalized.contactId,
+      webhookUrl: normalized.webhookUrl,
+      text: normalized.text
+    },
+    output: {
+      webhookStatus
+    },
+    contactId: normalized.contactId
+  });
 
   return NextResponse.json({
     ok: true,

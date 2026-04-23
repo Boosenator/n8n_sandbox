@@ -1,4 +1,4 @@
-import { ServiceItem, StaffMember } from "@/lib/types";
+import { ClientRecord, ServiceItem, StaffMember } from "@/lib/types";
 
 export const defaultServices: ServiceItem[] = [
   {
@@ -55,5 +55,24 @@ export const defaultStaff: StaffMember[] = [
     active: true,
     notes: "Працює з VIP-клієнтами.",
     serviceIds: ["svc_haircut", "svc_coloring", "svc_keratin"]
+  }
+];
+
+export const defaultClients: ClientRecord[] = [
+  {
+    id: "client_anna",
+    name: "Анна",
+    phone: "+380991112233",
+    visitCount: 15,
+    notes: "VIP-клієнт, любить ранкові слоти.",
+    tags: ["vip", "regular"]
+  },
+  {
+    id: "client_iryna",
+    name: "Ірина",
+    phone: "+380971234567",
+    visitCount: 4,
+    notes: "Переважно записується на фарбування.",
+    tags: ["color"]
   }
 ];

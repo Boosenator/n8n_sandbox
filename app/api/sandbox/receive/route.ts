@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appendSalonMessage } from "@/lib/sandbox-store";
+import { appendSalonMessage, logDialogReview, logToolCall } from "@/lib/sandbox-store";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -18,5 +18,18 @@ export async function POST(request: NextRequest) {
   }
 
   const item = appendSalonMessage(contactId, text);
+  logDialogReview({
+    sessionId: contactId,
+    contactId,
+    userMessage: "",
+    agentReply: text
+  });
+  logToolCall({
+    toolName: "sandbox_receive",
+    status: "success",
+    input: body as Record<string, unknown>,
+    output: { messageId: item.id },
+    contactId
+  });
   return NextResponse.json({ ok: true, item });
 }

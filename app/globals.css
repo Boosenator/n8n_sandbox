@@ -469,6 +469,11 @@ a {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
+.trace-dot.error {
+  background: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+}
+
 .panel-note,
 .status-label {
   color: var(--muted);
@@ -596,6 +601,16 @@ a {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.admin-observability {
+  padding: 14px;
+}
+
+.admin-observability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .admin-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -625,7 +640,8 @@ a {
 }
 
 .entity-list,
-.check-grid {
+.check-grid,
+.review-list {
   display: grid;
   gap: 10px;
 }
@@ -642,6 +658,27 @@ a {
   border-radius: 14px;
   padding: 10px 12px;
   background: var(--surface-muted);
+}
+
+.review-card {
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.review-card.green {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.review-card.yellow {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.review-card.red {
+  background: #fff1f2;
+  border-color: #fecdd3;
 }
 
 .entity-card-row {
@@ -700,12 +737,17 @@ a {
   grid-template-columns: minmax(0, 1.7fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr);
 }
 
+.trace-section {
+  margin-top: 14px;
+}
+
 @media (max-width: 1180px) {
   .workspace,
   .hero,
   .admin-columns,
   .admin-layout,
-  .admin-grid {
+  .admin-grid,
+  .admin-observability-grid {
     grid-template-columns: 1fr;
   }
 

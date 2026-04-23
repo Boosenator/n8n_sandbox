@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ServiceItem, StaffMember } from "@/lib/types";
+import {
+  BookingRecord,
+  ClientRecord,
+  DialogReviewRecord,
+  EscalationRecord,
+  ServiceItem,
+  StaffMember,
+  ToolTraceRecord
+} from "@/lib/types";
 
 type AdminTab = "staff" | "services";
 
@@ -44,6 +52,11 @@ export function AdminOverview() {
   const [busy, setBusy] = useState("");
   const [staffForm, setStaffForm] = useState(emptyStaffForm);
   const [serviceForm, setServiceForm] = useState(emptyServiceForm);
+  const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [toolCalls, setToolCalls] = useState<ToolTraceRecord[]>([]);
+  const [dialogReviews, setDialogReviews] = useState<DialogReviewRecord[]>([]);
+  const [escalations, setEscalations] = useState<EscalationRecord[]>([]);
 
   const serviceOptions = useMemo(
     () => services.map((service) => ({ id: service.id, label: service.name })),
@@ -59,14 +72,24 @@ export function AdminOverview() {
     setError("");
 
     try {
-      const [staffResponse, servicesResponse] = await Promise.all([
+      const [staffResponse, servicesResponse, observabilityResponse] = await Promise.all([
         fetch("/api/admin/staff", { cache: "no-store" }),
-        fetch("/api/admin/services", { cache: "no-store" })
+        fetch("/api/admin/services", { cache: "no-store" }),
+        fetch("/api/admin/observability", { cache: "no-store" })
       ]);
       const staffData = (await staffResponse.json()) as { items?: StaffMember[]; error?: string };
       const servicesData = (await servicesResponse.json()) as {
         items?: ServiceItem[];
         error?: string;
+      };
+      const observabilityData = (await observabilityResponse.json()) as {
+        snapshot?: {
+          clients?: ClientRecord[];
+          bookings?: BookingRecord[];
+          toolCalls?: ToolTraceRecord[];
+          dialogReviews?: DialogReviewRecord[];
+          escalations?: EscalationRecord[];
+        };
       };
 
       if (!staffResponse.ok) {
@@ -77,8 +100,19 @@ export function AdminOverview() {
         throw new Error(servicesData.error ?? "Не вдалося отримати services");
       }
 
+      if (!observabilityResponse.ok) {
+        throw new Error("Не вдалося отримати observability snapshot");
+      }
+
       setStaff(staffData.items ?? []);
       setServices(servicesData.items ?? []);
+      if (observabilityData?.snapshot) {
+        setClients(observabilityData.snapshot.clients ?? []);
+        setBookings(observabilityData.snapshot.bookings ?? []);
+        setToolCalls(observabilityData.snapshot.toolCalls ?? []);
+        setDialogReviews(observabilityData.snapshot.dialogReviews ?? []);
+        setEscalations(observabilityData.snapshot.escalations ?? []);
+      }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Помилка завантаження");
     } finally {
@@ -537,6 +571,116 @@ export function AdminOverview() {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="panel admin-observability full-span">
+          <div className="panel-header compact-panel-header admin-workspace-header">
+            <div>
+              <h2>Observability</h2>
+            </div>
+            <span className="panel-note">
+              Clients, bookings, tool trace, dialog reviews, escalations
+            </span>
+          </div>
+
+          <div className="admin-observability-grid">
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Clients</h3>
+                <span className="panel-note">{clients.length}</span>
+              </div>
+              <div className="entity-list compact-entity-list">
+                {clients.slice(0, 8).map((client) => (
+                  <div key={client.id} className="entity-card">
+                    <div className="entity-card-row">
+                      <strong>{client.name}</strong>
+                      <span className="panel-note">{client.visitCount} visits</span>
+                    </div>
+                    <p>{client.phone}</p>
+                    <p>{client.tags.join(", ") || "Без тегів"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Bookings</h3>
+                <span className="panel-note">{bookings.length}</span>
+              </div>
+              <div className="entity-list compact-entity-list">
+                {bookings.slice(0, 8).map((booking) => (
+                  <div key={booking.id} className="entity-card">
+                    <div className="entity-card-row">
+                      <strong>{booking.clientName}</strong>
+                      <span className={`status-badge${booking.status === "confirmed" ? " on" : ""}`}>
+                        {booking.status}
+                      </span>
+                    </div>
+                    <p>{booking.datetime}</p>
+                    <p>{booking.source}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Dialog Reviews</h3>
+                <span className="panel-note">{dialogReviews.length}</span>
+              </div>
+              <div className="review-list compact-entity-list">
+                {dialogReviews.slice(0, 8).map((review) => (
+                  <div key={review.id} className={`review-card ${review.severity}`}>
+                    <div className="entity-card-row">
+                      <strong>{review.severity.toUpperCase()}</strong>
+                      <span className="panel-note">{review.contactId}</span>
+                    </div>
+                    <p>{review.triggerReasons.join(", ")}</p>
+                    <p>confidence {review.confidenceScore.toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Tool Trace</h3>
+                <span className="panel-note">{toolCalls.length}</span>
+              </div>
+              <div className="entity-list compact-entity-list">
+                {toolCalls.slice(0, 8).map((tool) => (
+                  <div key={tool.id} className="entity-card">
+                    <div className="entity-card-row">
+                      <strong>{tool.toolName}</strong>
+                      <span className={`status-badge${tool.status === "success" ? " on" : ""}`}>
+                        {tool.status}
+                      </span>
+                    </div>
+                    <p>{tool.contactId || "global"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mini-panel compact-panel-shell">
+              <div className="mini-panel-header">
+                <h3>Escalations</h3>
+                <span className="panel-note">{escalations.length}</span>
+              </div>
+              <div className="entity-list compact-entity-list">
+                {escalations.slice(0, 8).map((item) => (
+                  <div key={item.id} className="entity-card">
+                    <div className="entity-card-row">
+                      <strong>{item.reason}</strong>
+                      <span className="panel-note">{item.contactId}</span>
+                    </div>
+                    <p>{item.context || "Без контексту"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </>
