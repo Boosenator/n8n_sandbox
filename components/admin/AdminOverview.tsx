@@ -208,57 +208,88 @@ export function AdminOverview() {
 
   return (
     <>
-      <section className="hero hero-tight compact">
+      <section className="hero hero-tight compact admin-hero">
         <div>
           <p className="eyebrow">Mock Admin</p>
-          <h1>Живий mock admin для staff і services</h1>
+          <h1>Компактний mock admin для staff і services</h1>
           <p className="hero-copy">
-            Це вже робочий шар над API: можна підсіяти дефолти, редагувати
-            майстрів і послуги та експортувати поточний snapshot.
+            Робоча область зібрана навколо швидкого редагування: вибір секції,
+            список, редактор і короткі fixture-дії без зайвих великих блоків.
           </p>
+        </div>
+        <div className="admin-hero-meta">
+          <div className="stat-card compact-stat-card">
+            <span className="stat-label">Section</span>
+            <strong>{activeTab === "staff" ? "Staff" : "Services"}</strong>
+          </div>
+          <div className="stat-card compact-stat-card">
+            <span className="stat-label">Status</span>
+            <strong>{loading ? "Loading..." : "API connected"}</strong>
+          </div>
         </div>
       </section>
 
-      <section className="admin-layout">
-        <div className="panel admin-tabs">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Sections</p>
-              <h2>Основні модулі</h2>
-            </div>
-          </div>
-
-          <div className="tab-list">
+      <section className="panel admin-toolbar">
+        <div className="toolbar-block">
+          <span className="panel-kicker">Sections</span>
+          <div className="compact-tabs">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                className={`tab-item${activeTab === tab.id ? " active" : ""}`}
+                className={`compact-tab${activeTab === tab.id ? " active" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
                 type="button"
               >
-                <strong>{tab.title}</strong>
-                <span>{tab.description}</span>
+                {tab.title}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="panel admin-workspace">
-          <div className="panel-header">
+        <div className="toolbar-block toolbar-actions">
+          <span className="panel-kicker">Quick Actions</span>
+          <div className="compact-actions">
+            <button
+              className="primary-button"
+              disabled={busy === "seed"}
+              onClick={() => void seedDefaults()}
+              type="button"
+            >
+              Seed defaults
+            </button>
+            <button
+              className="secondary-button"
+              disabled={busy === "export"}
+              onClick={() => void exportSnapshot()}
+              type="button"
+            >
+              Export snapshot
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {error ? <div className="alert-box admin-alert">{error}</div> : null}
+
+      <section className="admin-layout compact-admin-layout">
+        <div className="panel admin-workspace full-span">
+          <div className="panel-header compact-panel-header">
             <div>
               <p className="panel-kicker">Workspace</p>
               <h2>{activeTab === "staff" ? "Staff Manager" : "Services Manager"}</h2>
             </div>
-            <span className="panel-note">{loading ? "Loading..." : "API connected"}</span>
+            <span className="panel-note">
+              {activeTab === "staff"
+                ? "Майстри, ролі, active, service links"
+                : "Каталог послуг, тривалість, ціни"}
+            </span>
           </div>
 
-          {error ? <div className="alert-box">{error}</div> : null}
-
           {activeTab === "staff" ? (
-            <div className="admin-grid">
-              <div className="mini-panel tall">
+            <div className="admin-grid compact-admin-grid">
+              <div className="mini-panel compact-panel-shell">
                 <h3>List</h3>
-                <div className="entity-list">
+                <div className="entity-list compact-entity-list">
                   {staff.map((item) => (
                     <div key={item.id} className="entity-card">
                       <div className="entity-card-row">
@@ -300,7 +331,7 @@ export function AdminOverview() {
                 </div>
               </div>
 
-              <div className="mini-panel tall">
+              <div className="mini-panel compact-panel-shell">
                 <h3>Editor</h3>
                 <div className="settings-form single-column">
                   <label className="field">
@@ -389,10 +420,10 @@ export function AdminOverview() {
               </div>
             </div>
           ) : (
-            <div className="admin-grid">
-              <div className="mini-panel tall">
+            <div className="admin-grid compact-admin-grid">
+              <div className="mini-panel compact-panel-shell">
                 <h3>List</h3>
-                <div className="entity-list">
+                <div className="entity-list compact-entity-list">
                   {services.map((item) => (
                     <div key={item.id} className="entity-card">
                       <div className="entity-card-row">
@@ -433,7 +464,7 @@ export function AdminOverview() {
                 </div>
               </div>
 
-              <div className="mini-panel tall">
+              <div className="mini-panel compact-panel-shell">
                 <h3>Editor</h3>
                 <div className="settings-form single-column">
                   <label className="field">
@@ -503,51 +534,6 @@ export function AdminOverview() {
             </div>
           )}
         </div>
-
-        <aside className="panel admin-side">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Fixture Controls</p>
-              <h2>Системні дії</h2>
-            </div>
-          </div>
-
-          <div className="trace-list">
-            <div className="trace-item">
-              <span className="trace-dot" />
-              <div>
-                <strong>Seed defaults</strong>
-                <p>Повертає дефолтні staff і services зі стартового набору.</p>
-              </div>
-            </div>
-            <div className="trace-item">
-              <span className="trace-dot" />
-              <div>
-                <strong>Export snapshot</strong>
-                <p>Копіює поточний JSON snapshot у clipboard.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="composer-actions stacked-actions">
-            <button
-              className="primary-button"
-              disabled={busy === "seed"}
-              onClick={() => void seedDefaults()}
-              type="button"
-            >
-              Seed defaults
-            </button>
-            <button
-              className="secondary-button"
-              disabled={busy === "export"}
-              onClick={() => void exportSnapshot()}
-              type="button"
-            >
-              Export snapshot
-            </button>
-          </div>
-        </aside>
       </section>
     </>
   );
