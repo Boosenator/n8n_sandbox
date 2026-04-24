@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listMessages } from "@/lib/sandbox-store";
+import { listChatMessages } from "@/lib/supabase-admin";
 
 export async function GET(request: NextRequest) {
   const contactId = request.nextUrl.searchParams.get("contact_id");
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   }
 
   const since = sinceValue ? Number(sinceValue) : undefined;
-  const items = listMessages(contactId, Number.isFinite(since) ? since : undefined);
+  const items = await listChatMessages(contactId, Number.isFinite(since) ? since : undefined);
 
   return NextResponse.json({
     ok: true,

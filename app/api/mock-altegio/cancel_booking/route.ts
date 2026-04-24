@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cancelBooking, logToolCall } from "@/lib/sandbox-store";
+import { cancelBookingById, logToolTrace } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.booking_id) {
-    logToolCall({
+    await logToolTrace({
       toolName: "cancel_booking",
       status: "error",
       input: body as Record<string, unknown>,
@@ -21,14 +21,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const ok = cancelBooking(body.booking_id);
+  const ok = await cancelBookingById(body.booking_id);
 
   const response = {
     success: ok,
     error: ok ? undefined : "booking_not_found"
   };
 
-  logToolCall({
+  await logToolTrace({
     toolName: "cancel_booking",
     status: ok ? "success" : "error",
     input: body as Record<string, unknown>,

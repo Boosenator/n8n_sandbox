@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resetMessages } from "@/lib/sandbox-store";
+import { resetConversation } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as { contactId?: string };
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  resetMessages(body.contactId);
+  await resetConversation(body.contactId);
 
   return NextResponse.json({ ok: true });
 }

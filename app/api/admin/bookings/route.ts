@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteBookingItem, getAdminSnapshot, upsertBookingItem } from "@/lib/sandbox-store";
+import { deleteAdminBooking, getAdminBookings, upsertAdminBooking } from "@/lib/supabase-admin";
 import { BookingRecord } from "@/lib/types";
 
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    items: getAdminSnapshot().bookings
+    items: await getAdminBookings()
   });
 }
 
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const item = upsertBookingItem({
+  const item = await upsertAdminBooking({
     id: body.id,
     staffId: body.staffId,
     serviceId: body.serviceId,
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     clientName: body.clientName.trim(),
     clientPhone: body.clientPhone.trim(),
     status: body.status ?? "confirmed",
-    source: body.source ?? "admin"
+    source: body.source ?? "manual"
   });
 
   return NextResponse.json({ ok: true, item });
@@ -60,7 +60,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  deleteBookingItem(id);
+  await deleteAdminBooking(id);
 
   return NextResponse.json({ ok: true });
 }

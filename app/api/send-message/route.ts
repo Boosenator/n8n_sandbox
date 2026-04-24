@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildSendPulsePayload } from "@/lib/sendpulse-payload";
+import { buildLocalReply } from "@/lib/sandbox-store";
 import {
-  appendClientMessage,
-  appendSalonMessage,
-  buildLocalReply,
-  logDialogReview,
-  logToolCall
-} from "@/lib/sandbox-store";
+  createDialogReview,
+  ensureConversationContext,
+  logEvent,
+  logToolTrace
+} from "@/lib/supabase-admin";
 import { SendMessageRequest } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -24,7 +24,23 @@ export async function POST(request: NextRequest) {
     text: body.text.trim()
   };
 
-  const message = appendClientMessage(normalized);
+  const context = await ensureConversationContext(normalized);
+  const message = await logEvent({
+    userId: context.userId,
+    sessionId: context.sessionId,
+    contactId: normalized.contactId,
+    eventType: "incoming_message",
+    eventSubtype: "client",
+    source: "sandbox-ui",
+    title: normalized.contactName,
+    detail: normalized.text,
+    tone: "neutral",
+    payload: {
+      contact_name: normalized.contactName,
+      contact_username: normalized.contactUsername,
+      persona: normalized.persona
+    }
+  });
   const payload = buildSendPulsePayload(normalized);
 
   let webhookStatus: "skipped" | "sent" | "failed" = "skipped";
@@ -47,16 +63,32 @@ export async function POST(request: NextRequest) {
 
   if (webhookStatus !== "sent") {
     const reply = buildLocalReply(normalized);
-    appendSalonMessage(normalized.contactId, reply);
-    logDialogReview({
-      sessionId: normalized.contactId,
+    await logEvent({
+      userId: context.userId,
+      sessionId: context.sessionId,
       contactId: normalized.contactId,
+      eventType: "outgoing_message",
+      eventSubtype: "fallback",
+      source: "sandbox-local",
+      title: "VAngel Sandbox",
+      detail: reply,
+      tone: "green"
+    });
+    await createDialogReview({
+      userId: context.userId,
+      sessionId: context.sessionId,
+      contactId: normalized.contactId,
+      severity: "green",
+      triggerReasons: ["normal_flow"],
       userMessage: normalized.text,
-      agentReply: reply
+      agentReply: reply,
+      confidenceScore: 8,
+      toneScore: 8,
+      hallucinationScore: 8
     });
   }
 
-  logToolCall({
+  await logToolTrace({
     toolName: "send_message",
     status: webhookStatus === "failed" ? "error" : "success",
     input: {
@@ -72,7 +104,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    messageId: message.id,
+    messageId: message?.id ?? context.sessionId,
     webhookStatus,
     payload: normalized.debugPayload ? payload : undefined
   });

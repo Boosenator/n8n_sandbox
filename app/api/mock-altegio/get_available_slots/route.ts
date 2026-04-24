@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listAvailableSlots, logToolCall } from "@/lib/sandbox-store";
+import { listAvailableSlots, logToolTrace } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.staff_id || !body.service_id || !body.date) {
-    logToolCall({
+    await logToolTrace({
       toolName: "get_available_slots",
       status: "error",
       input: body as Record<string, unknown>,
@@ -25,14 +25,14 @@ export async function POST(request: NextRequest) {
 
   const response = {
     success: true,
-    data: listAvailableSlots({
+    data: await listAvailableSlots({
       staffId: body.staff_id,
       serviceId: body.service_id,
       date: body.date
     })
   };
 
-  logToolCall({
+  await logToolTrace({
     toolName: "get_available_slots",
     status: "success",
     input: body as Record<string, unknown>,

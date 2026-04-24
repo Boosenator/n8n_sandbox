@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createEscalation, logToolCall } from "@/lib/sandbox-store";
+import { createEscalation, logToolTrace } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.contact_id || !body.reason) {
-    logToolCall({
+    await logToolTrace({
       toolName: "escalate_to_master",
       status: "error",
       input: body as Record<string, unknown>,
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const escalation = createEscalation({
+  const escalation = await createEscalation({
     contactId: body.contact_id,
     reason: body.reason,
     context: body.context ?? ""
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     data: escalation
   };
 
-  logToolCall({
+  await logToolTrace({
     toolName: "escalate_to_master",
     status: "success",
     input: body as Record<string, unknown>,

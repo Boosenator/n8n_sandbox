@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  deleteServiceItem,
-  getAdminSnapshot,
-  upsertServiceItem
-} from "@/lib/sandbox-store";
+import { deleteAdminService, getAdminServices, upsertAdminService } from "@/lib/supabase-admin";
 import { ServiceItem } from "@/lib/types";
 
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    items: getAdminSnapshot().services
+    items: await getAdminServices()
   });
 }
 
@@ -23,7 +19,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const item = upsertServiceItem({
+  const item = await upsertAdminService({
     ...body,
     name: body.name.trim()
   });
@@ -41,7 +37,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  deleteServiceItem(id);
+  await deleteAdminService(id);
 
   return NextResponse.json({ ok: true });
 }

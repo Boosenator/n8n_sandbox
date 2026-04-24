@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteClientItem, getAdminSnapshot, upsertClientItem } from "@/lib/sandbox-store";
+import { deleteAdminClient, getAdminClients, upsertAdminClient } from "@/lib/supabase-admin";
 import { ClientRecord } from "@/lib/types";
 
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    items: getAdminSnapshot().clients
+    items: await getAdminClients()
   });
 }
 
@@ -22,10 +22,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const item = upsertClientItem({
-    ...body,
+  const item = await upsertAdminClient({
+    id: body.id,
     name: body.name.trim(),
     phone: body.phone.trim(),
+    notes: body.notes ?? "",
     tags: body.tags ?? []
   });
 
@@ -42,7 +43,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  deleteClientItem(id);
+  await deleteAdminClient(id);
 
   return NextResponse.json({ ok: true });
 }

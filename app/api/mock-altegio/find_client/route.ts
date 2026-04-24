@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findClient, logToolCall } from "@/lib/sandbox-store";
+import { findClient, logToolTrace } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     contact_id?: string;
   };
 
-  const client = findClient({
+  const client = await findClient({
     phone: body.phone,
     name: body.name
   });
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       : null
   };
 
-  logToolCall({
+  await logToolTrace({
     toolName: "find_client",
     status: "success",
     input: body as Record<string, unknown>,

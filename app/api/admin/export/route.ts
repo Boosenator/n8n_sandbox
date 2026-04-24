@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getAdminSnapshot } from "@/lib/sandbox-store";
+import { exportSupabaseSnapshot } from "@/lib/supabase-admin";
 
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    snapshot: getAdminSnapshot()
+    snapshot: await exportSupabaseSnapshot()
   });
 }

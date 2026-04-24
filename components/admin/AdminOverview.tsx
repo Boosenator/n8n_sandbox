@@ -16,6 +16,7 @@ import {
 
 type AdminTab =
   | "overview"
+  | "data"
   | "staff"
   | "services"
   | "clients"
@@ -30,6 +31,7 @@ const navGroups: Array<{
     title: "Control",
     items: [
       { id: "overview", label: "Dashboard", hint: "Status and progress" },
+      { id: "data", label: "Data", hint: "Schema tables" },
       { id: "observability", label: "Observability", hint: "Signals and logs" }
     ]
   },
@@ -91,7 +93,7 @@ const emptyBookingForm = {
   serviceId: "",
   datetime: "",
   status: "confirmed" as BookingRecord["status"],
-  source: "admin" as BookingRecord["source"]
+  source: "manual" as BookingRecord["source"]
 };
 
 function formatTime(timestamp: number) {
@@ -149,6 +151,7 @@ export function AdminOverview() {
   const [events, setEvents] = useState<ObservabilityEventRecord[]>([]);
   const [dialogReviews, setDialogReviews] = useState<DialogReviewRecord[]>([]);
   const [escalations, setEscalations] = useState<EscalationRecord[]>([]);
+  const [dataSnapshot, setDataSnapshot] = useState<Record<string, Array<Record<string, unknown>>>>({});
   const [sources, setSources] = useState<{
     messagesLog: SnapshotSource;
     dialogReviews: SnapshotSource;
@@ -191,13 +194,15 @@ export function AdminOverview() {
         servicesResponse,
         clientsResponse,
         bookingsResponse,
-        observabilityResponse
+        observabilityResponse,
+        exportResponse
       ] = await Promise.all([
         fetch("/api/admin/staff", { cache: "no-store" }),
         fetch("/api/admin/services", { cache: "no-store" }),
         fetch("/api/admin/clients", { cache: "no-store" }),
         fetch("/api/admin/bookings", { cache: "no-store" }),
-        fetch("/api/admin/observability", { cache: "no-store" })
+        fetch("/api/admin/observability", { cache: "no-store" }),
+        fetch("/api/admin/export", { cache: "no-store" })
       ]);
 
       const staffData = (await staffResponse.json()) as { items?: StaffMember[]; error?: string };
@@ -226,6 +231,9 @@ export function AdminOverview() {
           };
         };
       };
+      const exportData = (await exportResponse.json()) as {
+        snapshot?: Record<string, Array<Record<string, unknown>>>;
+      };
 
       if (!staffResponse.ok) {
         throw new Error(staffData.error ?? "Failed to load staff");
@@ -241,6 +249,9 @@ export function AdminOverview() {
       }
       if (!observabilityResponse.ok) {
         throw new Error("Failed to load observability snapshot");
+      }
+      if (!exportResponse.ok) {
+        throw new Error("Failed to load data snapshot");
       }
 
       setStaff(staffData.items ?? []);
@@ -261,6 +272,8 @@ export function AdminOverview() {
           }
         );
       }
+
+      setDataSnapshot(exportData.snapshot ?? {});
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load admin data");
     } finally {
@@ -479,6 +492,47 @@ export function AdminOverview() {
     );
   }
 
+  function renderGenericDataTable(title: string, rows: Array<Record<string, unknown>>) {
+    const columns = rows.length
+      ? Object.keys(rows[0]).filter((key) => key !== "payload" && key !== "metadata").slice(0, 6)
+      : ["empty"];
+
+    return renderTableShell(
+      title,
+      rows.length,
+      <table className="admin-table">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? (
+            rows.slice(0, 20).map((row, index) => (
+              <tr key={`${title}-${index}`}>
+                {columns.map((column) => (
+                  <td key={column}>
+                    {typeof row[column] === "object"
+                      ? JSON.stringify(row[column])
+                      : String(row[column] ?? "—")}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={columns.length} className="muted-cell">
+                No rows
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <section className="admin-console">
       <aside className="admin-sidebar">
@@ -530,6 +584,7 @@ export function AdminOverview() {
             <div className="admin-page-title-row">
               <h1>
                 {activeTab === "overview" && "Dashboard"}
+                {activeTab === "data" && "Data"}
                 {activeTab === "staff" && "Staff"}
                 {activeTab === "services" && "Services"}
                 {activeTab === "clients" && "Clients"}
@@ -541,6 +596,8 @@ export function AdminOverview() {
             <p className="admin-page-description">
               {activeTab === "overview" &&
                 "Daily control view for the sandbox state, recent events and delivery progress."}
+              {activeTab === "data" &&
+                "Read-only browser for all tables from the current migration so we can inspect the real schema state."}
               {activeTab === "staff" &&
                 "Manage masters, roles and service links in one dense table and edit form."}
               {activeTab === "services" &&
@@ -630,6 +687,27 @@ export function AdminOverview() {
                   </tbody>
                 </table>
               )}
+            </>
+          ) : null}
+
+          {activeTab === "data" ? (
+            <>
+              <div className="admin-two-col">
+                {renderGenericDataTable("Users", dataSnapshot.users ?? [])}
+                {renderGenericDataTable("Sessions", dataSnapshot.sessions ?? [])}
+              </div>
+              <div className="admin-two-col">
+                {renderGenericDataTable("Customer Profiles", dataSnapshot.customer_profiles ?? [])}
+                {renderGenericDataTable("Service Categories", dataSnapshot.service_categories ?? [])}
+              </div>
+              <div className="admin-two-col">
+                {renderGenericDataTable("Staff Schedules", dataSnapshot.staff_schedules ?? [])}
+                {renderGenericDataTable("Schedule Exceptions", dataSnapshot.schedule_exceptions ?? [])}
+              </div>
+              <div className="admin-two-col">
+                {renderGenericDataTable("Booking Services", dataSnapshot.booking_services ?? [])}
+                {renderGenericDataTable("Event Log", dataSnapshot.event_log ?? [])}
+              </div>
             </>
           ) : null}
 

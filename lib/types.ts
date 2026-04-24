@@ -53,10 +53,10 @@ export type BookingRecord = {
   staffId: string;
   serviceId: string;
   datetime: string;
-  status: "confirmed" | "cancelled";
+  status: "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
   clientName: string;
   clientPhone: string;
-  source: "agent" | "admin";
+  source: "sandbox" | "altegio" | "manual" | "n8n";
 };
 
 export type EscalationRecord = {

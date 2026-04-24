@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { estimatePrice, logToolCall } from "@/lib/sandbox-store";
+import { estimatePrice, logToolTrace } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.staff_id || !body.service_id) {
-    logToolCall({
+    await logToolTrace({
       toolName: "estimate_price",
       status: "error",
       input: body as Record<string, unknown>,
@@ -22,13 +22,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = estimatePrice({
+  const result = await estimatePrice({
     staffId: body.staff_id,
     serviceId: body.service_id
   });
 
   if (!result) {
-    logToolCall({
+    await logToolTrace({
       toolName: "estimate_price",
       status: "error",
       input: body as Record<string, unknown>,
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     data: result
   };
 
-  logToolCall({
+  await logToolTrace({
     toolName: "estimate_price",
     status: "success",
     input: body as Record<string, unknown>,

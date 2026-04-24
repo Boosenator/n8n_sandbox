@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   DialogReviewRecord,
-  MessageLogRecord,
   ObservabilityEventRecord,
   PersonaOption,
   SandboxMessage,
@@ -46,6 +45,14 @@ function formatTime(timestamp: number) {
   });
 }
 
+function toneClass(tone?: "green" | "yellow" | "red" | "neutral") {
+  if (tone === "green" || tone === "yellow" || tone === "red") {
+    return tone;
+  }
+
+  return "gray";
+}
+
 export function SandboxShell() {
   const [session, setSession] = useState<SessionPayload>(initialSession);
   const [draft, setDraft] = useState("");
@@ -57,7 +64,6 @@ export function SandboxShell() {
   const [lastStatus, setLastStatus] = useState<string>("idle");
   const [error, setError] = useState<string>("");
   const [toolCalls, setToolCalls] = useState<ToolTraceRecord[]>([]);
-  const [messagesLog, setMessagesLog] = useState<MessageLogRecord[]>([]);
   const [events, setEvents] = useState<ObservabilityEventRecord[]>([]);
   const [reviews, setReviews] = useState<DialogReviewRecord[]>([]);
   const [sources, setSources] = useState<{
@@ -164,7 +170,6 @@ export function SandboxShell() {
       const data = (await response.json()) as {
         snapshot?: {
           toolCalls?: ToolTraceRecord[];
-          messagesLog?: MessageLogRecord[];
           dialogReviews?: DialogReviewRecord[];
           events?: ObservabilityEventRecord[];
           sources?: {
@@ -179,7 +184,6 @@ export function SandboxShell() {
       }
 
       setToolCalls(data.snapshot.toolCalls ?? []);
-      setMessagesLog(data.snapshot.messagesLog ?? []);
       setReviews(data.snapshot.dialogReviews ?? []);
       setEvents(data.snapshot.events ?? []);
       setSources(
@@ -279,7 +283,6 @@ export function SandboxShell() {
       }
 
       setMessages([]);
-      setMessagesLog([]);
       setEvents([]);
       setReviews([]);
       lastTimestampRef.current = undefined;
@@ -289,272 +292,283 @@ export function SandboxShell() {
   }
 
   return (
-    <>
-      <section className="hero hero-tight">
-        <div>
-          <p className="eyebrow">VAngel Sandbox</p>
-          <h1>Sandbox chat API with polling and DB-backed signals</h1>
-          <p className="hero-copy">
-            Chat keeps local session state, polls new messages, shows live tool activity, and now
-            prefers Supabase reviews and message logs when they are available.
-          </p>
+    <section className="admin-console chat-admin-console">
+      <aside className="admin-sidebar chat-admin-sidebar">
+        <div className="admin-sidebar-logo">Chat Sandbox</div>
+
+        <div className="admin-sidebar-group">
+          <div className="admin-sidebar-group-title">Session</div>
+          <div className="chat-sidebar-body">
+            <label className="chat-admin-field">
+              <span>Webhook URL</span>
+              <input
+                value={session.webhookUrl}
+                onChange={(event) => updateField("webhookUrl", event.target.value)}
+                placeholder="https://.../webhook/..."
+              />
+            </label>
+            <label className="chat-admin-field">
+              <span>Contact ID</span>
+              <input
+                value={session.contactId}
+                onChange={(event) => updateField("contactId", event.target.value)}
+              />
+            </label>
+            <label className="chat-admin-field">
+              <span>Client name</span>
+              <input
+                value={session.contactName}
+                onChange={(event) => updateField("contactName", event.target.value)}
+              />
+            </label>
+            <label className="chat-admin-field">
+              <span>Username</span>
+              <input
+                value={session.contactUsername}
+                onChange={(event) => updateField("contactUsername", event.target.value)}
+              />
+            </label>
+            <label className="chat-admin-field">
+              <span>Persona</span>
+              <select
+                value={session.persona}
+                onChange={(event) => updateField("persona", event.target.value as PersonaOption)}
+              >
+                {Object.entries(personaLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="chat-admin-check">
+              <input
+                checked={session.debugPayload}
+                onChange={(event) => updateField("debugPayload", event.target.checked)}
+                type="checkbox"
+              />
+              <span>Include raw payload in debug output</span>
+            </label>
+          </div>
         </div>
 
-        <div className="hero-stats compact-stats">
-          <div className="stat-card">
-            <span className="stat-label">Mode</span>
-            <strong>{sending ? "Sending..." : "API wired"}</strong>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Contact</span>
-            <strong>{session.contactId}</strong>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Webhook</span>
-            <strong>{lastStatus}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="workspace">
-        <div className="panel chat-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Chat</p>
-              <h2>Instagram Direct Sandbox</h2>
-            </div>
-            <span className="pill neutral-pill">{messages.length} messages</span>
-          </div>
-
-          {error ? <div className="alert-box">{error}</div> : null}
-
-          <div className="messages-list">
-            {loadingMessages ? (
-              <div className="empty-state">Loading conversation...</div>
-            ) : messages.length ? (
-              messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`message-row ${message.author === "client" ? "client-row" : "salon-row"}`}
-                >
-                  <div
-                    className={`message ${
-                      message.author === "client" ? "message-client" : "message-salon"
-                    }`}
-                  >
-                    <span className="message-author">
-                      {message.author === "client"
-                        ? session.contactName
-                        : message.author === "system"
-                          ? "System"
-                          : "VAngel sandbox"}
-                    </span>
-                    <p>{message.text}</p>
-                    <time className="message-time">{formatTime(message.timestamp)}</time>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">History is empty. Send the first test message.</div>
-            )}
-          </div>
-
-          <form className="composer" onSubmit={handleSubmit}>
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={3}
-              placeholder="Type a sandbox message..."
-            />
-
-            <div className="composer-actions">
-              <button type="button" className="secondary-button" onClick={resetConversation}>
-                Reset
-              </button>
-              <button type="submit" className="primary-button" disabled={sending}>
-                {sending ? "Sending..." : "Send"}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div className="center-column">
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Settings</p>
-                <h2>Session and config</h2>
+        <div className="admin-sidebar-group">
+          <div className="admin-sidebar-group-title">Scenarios</div>
+          <div className="chat-sidebar-body">
+            {quickScenarios.map((scenario) => (
+              <div key={scenario} className="chat-sidebar-scenario">
+                <strong>{scenario}</strong>
+                <span>Quick manual path for testing the flow.</span>
               </div>
-              <span className="panel-note">localStorage + API</span>
-            </div>
+            ))}
+          </div>
+        </div>
+      </aside>
 
-            <div className="settings-form">
-              <label className="field">
-                <span>Webhook URL</span>
-                <input
-                  value={session.webhookUrl}
-                  onChange={(event) => updateField("webhookUrl", event.target.value)}
-                  placeholder="https://..."
-                />
-              </label>
-
-              <label className="field">
-                <span>Contact ID</span>
-                <input
-                  value={session.contactId}
-                  onChange={(event) => updateField("contactId", event.target.value)}
-                />
-              </label>
-
-              <label className="field">
-                <span>Client name</span>
-                <input
-                  value={session.contactName}
-                  onChange={(event) => updateField("contactName", event.target.value)}
-                />
-              </label>
-
-              <label className="field">
-                <span>Username</span>
-                <input
-                  value={session.contactUsername}
-                  onChange={(event) => updateField("contactUsername", event.target.value)}
-                />
-              </label>
-
-              <label className="field">
-                <span>Persona</span>
-                <select
-                  value={session.persona}
-                  onChange={(event) => updateField("persona", event.target.value as PersonaOption)}
-                >
-                  {Object.entries(personaLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="toggle-field">
-                <input
-                  checked={session.debugPayload}
-                  onChange={(event) => updateField("debugPayload", event.target.checked)}
-                  type="checkbox"
-                />
-                <span>Include raw payload in debug output</span>
-              </label>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Scenarios</p>
-                <h2>Quick test paths</h2>
-              </div>
-            </div>
-
-            <div className="scenario-list">
-              {quickScenarios.map((scenario) => (
-                <div key={scenario} className="scenario-item">
-                  <strong>{scenario}</strong>
-                  <span>We can turn this into scripted buttons later.</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Raw Payload</p>
-                <h2>Last debug output</h2>
-              </div>
-            </div>
-
-            <pre className="payload-box">{prettyPayload}</pre>
-          </section>
+      <div className="admin-main">
+        <div className="admin-classic-topbar">
+          <div className="admin-classic-brand">
+            Chat Sandbox <span>·</span> Live webhook, messages and signals
+          </div>
+          <div className="admin-classic-spacer" />
+          <span className="chat-status-chip">contact {session.contactId}</span>
+          <span className="chat-status-chip">webhook {lastStatus}</span>
+          <span className="chat-status-chip">{sending ? "sending" : "ready"}</span>
         </div>
 
-        <aside className="panel trace-column">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Tool Trace</p>
-              <h2>Live activity</h2>
-            </div>
-          </div>
-
-          <div className="trace-list">
-            {toolCalls.length ? (
-              toolCalls.slice(0, 8).map((item) => (
-                <div key={item.id} className="list-row">
-                  <div className="list-row-main">
-                    <span className={`tone-pill ${item.status === "error" ? "red" : "green"}`} />
-                    <strong>{item.toolName}</strong>
-                    <span className="row-text">{item.status}</span>
-                  </div>
-                  <span className="row-meta">{formatTime(item.timestamp)}</span>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">Tool trace will appear after the first tool calls.</div>
-            )}
-          </div>
-
-          <div className="trace-section">
-            <div className="mini-panel-header">
-              <h3>Signals</h3>
-              <span className="panel-note">
-                {reviews.length} reviews · {sources.dialogReviews}
+        <div className="admin-content chat-admin-content">
+          <div className="admin-page-header">
+            <div className="admin-page-title-row">
+              <h1>Instagram Direct Sandbox</h1>
+              <span className="admin-page-note">
+                {messages.length} messages · reviews {sources.dialogReviews} · log {sources.messagesLog}
               </span>
             </div>
-
-            <div className="review-list">
-              {reviews.length ? (
-                reviews.slice(0, 6).map((review) => (
-                  <div key={review.id} className="list-row">
-                    <div className="list-row-main">
-                      <span className={`tone-pill ${review.severity}`} />
-                      <strong>{review.severity.toUpperCase()}</strong>
-                      <span className="row-text">{review.triggerReasons.join(", ")}</span>
-                    </div>
-                    <span className="row-meta">{formatTime(review.timestamp)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="empty-state">No green/yellow/red signals for this contact yet.</div>
-              )}
-            </div>
+            <p className="admin-page-description">
+              Control the session on the left, send messages from the center, and review tool traces
+              plus Recent Event Log on the right.
+            </p>
           </div>
 
-          <div className="trace-section">
-            <div className="mini-panel-header">
-              <h3>Event Log</h3>
-              <span className="panel-note">
-                {messagesLog.length} rows · {sources.messagesLog}
-              </span>
-            </div>
+          {error ? <div className="admin-notice">{error}</div> : null}
 
-            <div className="event-log">
-              {events.length ? (
-                events.slice(0, 12).map((item) => (
-                  <div key={item.id} className="list-row">
-                    <div className="list-row-main">
-                      <span className={`tone-pill ${item.tone ?? "neutral"}`} />
-                      <strong>{item.title}</strong>
-                      <span className="row-text">{item.detail}</span>
+          <div className="chat-admin-grid">
+            <section className="chat-workspace-panel">
+              <div className="chat-workspace-head">
+                <div>
+                  <div className="chat-workspace-title">Conversation</div>
+                  <div className="chat-workspace-subtitle">Supabase-backed message stream</div>
+                </div>
+                <span className="admin-badge admin-badge-blue">{messages.length} rows</span>
+              </div>
+
+              <div className="chat-messages-board">
+                {loadingMessages ? (
+                  <div className="empty-state">Loading conversation...</div>
+                ) : messages.length ? (
+                  messages.map((message) => (
+                    <article
+                      key={message.id}
+                      className={`chat-admin-row ${message.author === "client" ? "client-row" : "salon-row"}`}
+                    >
+                      <div
+                        className={`chat-admin-bubble ${
+                          message.author === "client"
+                            ? "message-client"
+                            : message.author === "system"
+                              ? "message-system"
+                              : "message-salon"
+                        }`}
+                      >
+                        <span className="message-author">
+                          {message.author === "client"
+                            ? session.contactName
+                            : message.author === "system"
+                              ? "System"
+                              : "VAngel"}
+                        </span>
+                        <p>{message.text}</p>
+                        <time className="message-time">{formatTime(message.timestamp)}</time>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state">History is empty. Send the first sandbox message.</div>
+                )}
+              </div>
+
+              <form className="chat-admin-composer" onSubmit={handleSubmit}>
+                <textarea
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  rows={4}
+                  placeholder="Type a sandbox message..."
+                />
+                <div className="chat-admin-composer-actions">
+                  <button type="button" className="admin-btn admin-btn-gray" onClick={resetConversation}>
+                    Reset
+                  </button>
+                  <button type="submit" className="admin-btn admin-btn-green" disabled={sending}>
+                    {sending ? "Sending..." : "Send"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <aside className="chat-observability-column">
+              <section className="admin-page-block">
+                <div className="admin-page-title">
+                  <span>Tool Trace</span>
+                  <span className="admin-page-subtitle">{toolCalls.length} rows</span>
+                </div>
+                <div className="admin-plain-list">
+                  {toolCalls.length ? (
+                    toolCalls.slice(0, 8).map((item) => (
+                      <div key={item.id} className="admin-plain-row">
+                        <span
+                          className={`admin-badge ${
+                            item.status === "error" ? "admin-badge-red" : "admin-badge-green"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                        <span className="chat-observability-label">{item.toolName}</span>
+                        <span className="admin-toolbar-spacer" />
+                        <span className="admin-page-note">{formatTime(item.timestamp)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="admin-plain-row">
+                      <span>No tool activity yet.</span>
                     </div>
-                    <span className="row-meta">{formatTime(item.timestamp)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="empty-state">Event log will appear after the first dialog steps.</div>
-              )}
-            </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="admin-page-block">
+                <div className="admin-page-title">
+                  <span>Signals</span>
+                  <span className="admin-page-subtitle">
+                    {reviews.length} rows · {sources.dialogReviews}
+                  </span>
+                </div>
+                <div className="admin-plain-list">
+                  {reviews.length ? (
+                    reviews.slice(0, 6).map((review) => (
+                      <div key={review.id} className="admin-plain-row">
+                        <span className={`admin-badge admin-badge-${review.severity}`}>
+                          {review.severity}
+                        </span>
+                        <span className="chat-observability-label">
+                          {review.triggerReasons.join(", ")}
+                        </span>
+                        <span className="admin-toolbar-spacer" />
+                        <span className="admin-page-note">{formatTime(review.timestamp)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="admin-plain-row">
+                      <span>No signals for this contact yet.</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="admin-page-block">
+                <div className="admin-page-title">
+                  <span>Recent Event Log</span>
+                  <span className="admin-page-subtitle">
+                    {events.length} rows · {sources.messagesLog}
+                  </span>
+                </div>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {events.length ? (
+                        events.slice(0, 14).map((item) => (
+                          <tr key={item.id}>
+                            <td className="muted-cell">{formatTime(item.timestamp)}</td>
+                            <td>
+                              <span className={`admin-badge admin-badge-${toneClass(item.tone)}`}>
+                                {item.kind}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="chat-event-title">{item.title}</div>
+                              <div className="muted-cell">{item.detail}</div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={3} className="muted-cell">
+                            Event log will appear after the first dialog steps.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="admin-page-block">
+                <div className="admin-page-title">
+                  <span>Raw Payload</span>
+                  <span className="admin-page-subtitle">Last debug output</span>
+                </div>
+                <pre className="payload-box chat-payload-box">{prettyPayload}</pre>
+              </section>
+            </aside>
           </div>
-        </aside>
-      </section>
-    </>
+        </div>
+      </div>
+    </section>
   );
 }

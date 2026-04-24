@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appendSalonMessage, logDialogReview, logToolCall } from "@/lib/sandbox-store";
+import {
+  createDialogReview,
+  ensureConversationContext,
+  logEvent,
+  logToolTrace
+} from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -17,18 +22,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const item = appendSalonMessage(contactId, text);
-  logDialogReview({
-    sessionId: contactId,
-    contactId,
-    userMessage: "",
-    agentReply: text
+  const context = await ensureConversationContext({
+    contactId
   });
-  logToolCall({
+  const item = await logEvent({
+    userId: context.userId,
+    sessionId: context.sessionId,
+    contactId,
+    eventType: "outgoing_message",
+    eventSubtype: "sandbox_receive",
+    source: "sandbox-receive",
+    title: "VAngel Admin Agent",
+    detail: text,
+    tone: "green",
+    payload: body as Record<string, unknown>
+  });
+  await createDialogReview({
+    userId: context.userId,
+    sessionId: context.sessionId,
+    contactId,
+    severity: "green",
+    triggerReasons: ["normal_flow"],
+    userMessage: "",
+    agentReply: text,
+    confidenceScore: 8,
+    toneScore: 8,
+    hallucinationScore: 8
+  });
+  await logToolTrace({
     toolName: "sandbox_receive",
     status: "success",
     input: body as Record<string, unknown>,
-    output: { messageId: item.id },
+    output: { messageId: item?.id ?? context.sessionId },
     contactId
   });
   return NextResponse.json({ ok: true, item });

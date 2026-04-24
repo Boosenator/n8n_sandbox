@@ -531,7 +531,7 @@ export function createBooking(input: {
   datetime: string;
   clientName: string;
   clientPhone: string;
-  source?: "agent" | "admin";
+  source?: "sandbox" | "manual";
 }) {
   const state = getState();
 
@@ -555,7 +555,7 @@ export function createBooking(input: {
     status: "confirmed",
     clientName: input.clientName,
     clientPhone: input.clientPhone,
-    source: input.source ?? "agent"
+    source: input.source ?? "sandbox"
   };
 
   state.bookings.unshift(booking);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createBooking, logToolCall } from "@/lib/sandbox-store";
+import { createBookingFromTool, logToolTrace } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.staff_id || !body.service_id || !body.datetime || !body.client?.name || !body.client?.phone) {
-    logToolCall({
+    await logToolTrace({
       toolName: "create_booking",
       status: "error",
       input: body as Record<string, unknown>,
@@ -27,16 +27,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = createBooking({
+  const result = await createBookingFromTool({
     staffId: body.staff_id,
     serviceId: body.service_id,
     datetime: body.datetime,
     clientName: body.client.name,
-    clientPhone: body.client.phone
+    clientPhone: body.client.phone,
+    contactId: body.contact_id
   });
 
   if (!result.success) {
-    logToolCall({
+    await logToolTrace({
       toolName: "create_booking",
       status: "error",
       input: body as Record<string, unknown>,
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
   };
 
-  logToolCall({
+  await logToolTrace({
     toolName: "create_booking",
     status: "success",
     input: body as Record<string, unknown>,
