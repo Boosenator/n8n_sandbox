@@ -447,6 +447,34 @@ export function upsertClientRecord(input: {
   return nextClient;
 }
 
+export function upsertClientItem(
+  item: Partial<ClientRecord> & Pick<ClientRecord, "name" | "phone">
+) {
+  const state = getState();
+  const nextItem: ClientRecord = {
+    id: item.id ?? `client_${Date.now()}`,
+    name: item.name,
+    phone: item.phone,
+    visitCount: item.visitCount ?? 0,
+    notes: item.notes ?? "",
+    tags: item.tags ?? []
+  };
+  const index = state.clients.findIndex((client) => client.id === nextItem.id);
+
+  if (index >= 0) {
+    state.clients[index] = nextItem;
+  } else {
+    state.clients.unshift(nextItem);
+  }
+
+  return nextItem;
+}
+
+export function deleteClientItem(id: string) {
+  const state = getState();
+  state.clients = state.clients.filter((item) => item.id !== id);
+}
+
 function isSlotOccupied(staffId: string, datetime: string) {
   return getState().bookings.some(
     (booking) =>
@@ -547,6 +575,40 @@ export function createBooking(input: {
   };
 }
 
+export function upsertBookingItem(
+  item: Partial<BookingRecord> &
+    Pick<
+      BookingRecord,
+      "staffId" | "serviceId" | "datetime" | "clientName" | "clientPhone" | "status" | "source"
+    >
+) {
+  const state = getState();
+  const nextItem: BookingRecord = {
+    id: item.id ?? `SBX-BOOK-${Date.now()}`,
+    staffId: item.staffId,
+    serviceId: item.serviceId,
+    datetime: item.datetime,
+    status: item.status,
+    clientName: item.clientName,
+    clientPhone: item.clientPhone,
+    source: item.source
+  };
+  const index = state.bookings.findIndex((booking) => booking.id === nextItem.id);
+
+  if (index >= 0) {
+    state.bookings[index] = nextItem;
+  } else {
+    state.bookings.unshift(nextItem);
+  }
+
+  upsertClientItem({
+    name: nextItem.clientName,
+    phone: nextItem.clientPhone
+  });
+
+  return nextItem;
+}
+
 export function cancelBooking(bookingId: string) {
   const booking = getState().bookings.find((item) => item.id === bookingId);
 
@@ -556,6 +618,11 @@ export function cancelBooking(bookingId: string) {
 
   booking.status = "cancelled";
   return true;
+}
+
+export function deleteBookingItem(id: string) {
+  const state = getState();
+  state.bookings = state.bookings.filter((item) => item.id !== id);
 }
 
 export function estimatePrice(params: { staffId: string; serviceId: string }) {
