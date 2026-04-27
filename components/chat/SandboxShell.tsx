@@ -78,6 +78,29 @@ export function SandboxShell() {
     dialogReviews: "local"
   });
   const lastTimestampRef = useRef<number | undefined>(undefined);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+
+  function handleMessagesScroll() {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
+
+  useEffect(() => {
+    if (!loadingMessages) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      isAtBottomRef.current = true;
+    }
+  }, [loadingMessages]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length]);
 
   const prettyPayload = useMemo(() => {
     if (!lastPayload) {
@@ -446,7 +469,11 @@ export function SandboxShell() {
                 <span className="admin-badge admin-badge-blue">{messages.length} rows</span>
               </div>
 
-              <div className="chat-messages-board">
+              <div
+                className="chat-messages-board"
+                ref={messagesContainerRef}
+                onScroll={handleMessagesScroll}
+              >
                 {loadingMessages ? (
                   <div className="empty-state">Loading conversation...</div>
                 ) : messages.length ? (
@@ -479,6 +506,7 @@ export function SandboxShell() {
                 ) : (
                   <div className="empty-state">History is empty. Send the first sandbox message.</div>
                 )}
+                <div ref={messagesEndRef} />
               </div>
 
               <form className="chat-admin-composer" onSubmit={handleSubmit}>
@@ -493,8 +521,8 @@ export function SandboxShell() {
                   <button type="button" className="admin-btn admin-btn-gray" onClick={resetConversation}>
                     Reset
                   </button>
-                  <button type="submit" className="admin-btn admin-btn-green" disabled={sending}>
-                    {sending ? "Sending..." : "Send"}
+                  <button type="submit" className="admin-btn admin-btn-green">
+                    Send
                   </button>
                 </div>
               </form>
