@@ -219,13 +219,24 @@ export function SandboxShell() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    void fireMessage(draft);
+  }
 
-    const text = draft.trim();
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && event.ctrlKey) {
+      event.preventDefault();
+      void fireMessage(draft);
+    }
+  }
 
-    if (!text) {
+  async function fireMessage(raw: string) {
+    const text = raw.trim();
+
+    if (!text || sending) {
       return;
     }
 
+    setDraft("");
     setSending(true);
     setError("");
 
@@ -251,11 +262,8 @@ export function SandboxShell() {
         throw new Error(data.error ?? "Failed to send message");
       }
 
-      setDraft("");
       setLastStatus(data.webhookStatus ?? "unknown");
       setLastPayload(data.payload ? JSON.stringify(data.payload, null, 2) : "");
-      await loadMessages();
-      await loadObservability();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Message send error");
     } finally {
@@ -441,8 +449,9 @@ export function SandboxShell() {
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={handleKeyDown}
                   rows={4}
-                  placeholder="Type a sandbox message..."
+                  placeholder="Type a sandbox message... (Ctrl+Enter to send)"
                 />
                 <div className="chat-admin-composer-actions">
                   <button type="button" className="admin-btn admin-btn-gray" onClick={resetConversation}>
