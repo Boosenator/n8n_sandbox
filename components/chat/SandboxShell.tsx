@@ -14,6 +14,9 @@ import {
 const storageKey = "vangel-sandbox-session";
 
 const initialSession: SessionPayload = {
+  webhookUrlTest: "",
+  webhookUrlProd: "",
+  webhookEnv: "test",
   webhookUrl: "",
   contactId: "SANDBOX_TEST_0001",
   contactName: "Test client",
@@ -59,7 +62,8 @@ export function SandboxShell() {
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
   const [ready, setReady] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
-  const [sending, setSending] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const sending = pendingCount > 0;
   const [lastPayload, setLastPayload] = useState<string>("");
   const [lastStatus, setLastStatus] = useState<string>("idle");
   const [error, setError] = useState<string>("");
@@ -232,12 +236,16 @@ export function SandboxShell() {
   async function fireMessage(raw: string) {
     const text = raw.trim();
 
-    if (!text || sending) {
+    if (!text) {
       return;
     }
 
+    const activeWebhookUrl = session.webhookEnv === "prod"
+      ? session.webhookUrlProd
+      : session.webhookUrlTest;
+
     setDraft("");
-    setSending(true);
+    setPendingCount((c) => c + 1);
     setError("");
 
     try {
@@ -248,6 +256,7 @@ export function SandboxShell() {
         },
         body: JSON.stringify({
           ...session,
+          webhookUrl: activeWebhookUrl,
           text
         })
       });
@@ -267,7 +276,7 @@ export function SandboxShell() {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Message send error");
     } finally {
-      setSending(false);
+      setPendingCount((c) => c - 1);
     }
   }
 
@@ -307,12 +316,39 @@ export function SandboxShell() {
         <div className="admin-sidebar-group">
           <div className="admin-sidebar-group-title">Session</div>
           <div className="chat-sidebar-body">
+            <div className="chat-admin-field">
+              <span>Environment</span>
+              <div className="chat-env-toggle">
+                <button
+                  type="button"
+                  className={`chat-env-btn${session.webhookEnv === "test" ? " active" : ""}`}
+                  onClick={() => updateField("webhookEnv", "test")}
+                >
+                  Test
+                </button>
+                <button
+                  type="button"
+                  className={`chat-env-btn${session.webhookEnv === "prod" ? " active" : ""}`}
+                  onClick={() => updateField("webhookEnv", "prod")}
+                >
+                  Prod
+                </button>
+              </div>
+            </div>
             <label className="chat-admin-field">
-              <span>Webhook URL</span>
+              <span>Test webhook URL</span>
               <input
-                value={session.webhookUrl}
-                onChange={(event) => updateField("webhookUrl", event.target.value)}
-                placeholder="https://.../webhook/..."
+                value={session.webhookUrlTest}
+                onChange={(event) => updateField("webhookUrlTest", event.target.value)}
+                placeholder="https://.../webhook/test/..."
+              />
+            </label>
+            <label className="chat-admin-field">
+              <span>Prod webhook URL</span>
+              <input
+                value={session.webhookUrlProd}
+                onChange={(event) => updateField("webhookUrlProd", event.target.value)}
+                placeholder="https://.../webhook/prod/..."
               />
             </label>
             <label className="chat-admin-field">

@@ -9,7 +9,12 @@ export type SandboxMessage = {
   timestamp: number;
 };
 
+export type WebhookEnv = "test" | "prod";
+
 export type SessionPayload = {
+  webhookUrlTest: string;
+  webhookUrlProd: string;
+  webhookEnv: WebhookEnv;
   webhookUrl: string;
   contactId: string;
   contactName: string;
