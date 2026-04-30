@@ -1560,3 +1560,54 @@ export async function createEscalation(input: {
     timestamp: normalizeTimestamp(row?.event_at ?? row?.created_at)
   };
 }
+
+export async function getBookingById(id: string) {
+  const rows = await selectRows<BookingRow>(
+    "bookings",
+    "id,user_id,session_id,contact_id,staff_id,service_id,starts_at,ends_at,status,client_name,client_phone,source,metadata",
+    { filters: { id: `eq.${id}` }, limit: 1 }
+  );
+  return rows[0] ? mapBooking(rows[0]) : null;
+}
+
+export async function rescheduleBooking(input: {
+  id: string;
+  datetime: string;
+  staffId?: string;
+}) {
+  const payload: Record<string, string> = {
+    starts_at: new Date(input.datetime).toISOString()
+  };
+  if (input.staffId) payload.staff_id = input.staffId;
+
+  const rows = await updateRows<BookingRow>("bookings", payload, { id: `eq.${input.id}` });
+  return rows[0] ? mapBooking(rows[0]) : null;
+}
+
+export async function createClientFromTool(input: { name: string; phone: string; notes?: string }) {
+  const user = await upsertAdminClient({
+    name: input.name,
+    phone: input.phone,
+    notes: input.notes
+  });
+
+  if (!user) return null;
+
+  const bookings = await selectRows<BookingRow>("bookings", "id,user_id,status", {
+    filters: { user_id: `eq.${user.id}` },
+    limit: 200
+  });
+
+  const visitCount = bookings.filter(
+    (item) => item.status === "confirmed" || item.status === "completed"
+  ).length;
+
+  return {
+    id: user.id,
+    name: user.name ?? input.name,
+    phone: user.phone ?? input.phone,
+    visitCount,
+    tags: [] as string[],
+    notes: input.notes ?? ""
+  };
+}

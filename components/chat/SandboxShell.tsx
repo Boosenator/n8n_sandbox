@@ -237,7 +237,11 @@ export function SandboxShell() {
         return;
       }
 
-      setMessages((current) => [...current, ...data.items!]);
+      setMessages((current) => {
+        const existingIds = new Set(current.map((m) => m.id));
+        const fresh = data.items!.filter((m) => !existingIds.has(m.id));
+        return fresh.length ? [...current, ...fresh] : current;
+      });
       lastTimestampRef.current = data.items.at(-1)?.timestamp;
     } catch {
       // Ignore polling errors to keep the UI calm.
