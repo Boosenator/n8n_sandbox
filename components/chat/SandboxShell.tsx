@@ -81,6 +81,7 @@ export function SandboxShell() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
+  const sendingRef = useRef(false);
 
   function handleMessagesScroll() {
     const el = messagesContainerRef.current;
@@ -250,17 +251,27 @@ export function SandboxShell() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (sendingRef.current) {
+      return;
+    }
     void fireMessage(draft);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && event.ctrlKey) {
       event.preventDefault();
+      if (sendingRef.current) {
+        return;
+      }
       void fireMessage(draft);
     }
   }
 
   async function fireMessage(raw: string) {
+    if (sendingRef.current) {
+      return;
+    }
+
     const text = raw.trim();
 
     if (!text) {
@@ -271,6 +282,7 @@ export function SandboxShell() {
       ? session.webhookUrlProd
       : session.webhookUrlTest;
 
+    sendingRef.current = true;
     setDraft("");
     setPendingCount((c) => c + 1);
     setError("");
@@ -303,6 +315,7 @@ export function SandboxShell() {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Message send error");
     } finally {
+      sendingRef.current = false;
       setPendingCount((c) => c - 1);
     }
   }
@@ -513,20 +526,25 @@ export function SandboxShell() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <form className="chat-admin-composer" onSubmit={handleSubmit}>
+              <form className="chat-admin-composer" onSubmit={handleSubmit} aria-busy={sending}>
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={handleKeyDown}
                   rows={4}
                   placeholder="Type a sandbox message... (Ctrl+Enter to send)"
+                  disabled={sending}
                 />
                 <div className="chat-admin-composer-actions">
                   <button type="button" className="admin-btn admin-btn-gray" onClick={resetConversation}>
                     Reset
                   </button>
-                  <button type="submit" className="admin-btn admin-btn-green">
-                    Send
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-green"
+                    disabled={sending || !draft.trim()}
+                  >
+                    {sending ? "Sending" : "Send"}
                   </button>
                 </div>
               </form>
