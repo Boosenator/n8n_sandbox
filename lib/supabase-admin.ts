@@ -866,6 +866,7 @@ export async function upsertAdminBooking(input: {
   datetime: string;
   clientName: string;
   clientPhone: string;
+  contactId?: string;
   status?: BookingRecord["status"];
   source?: BookingRecord["source"];
 }) {
@@ -883,8 +884,8 @@ export async function upsertAdminBooking(input: {
 
   const payload = {
     user_id: user?.id ?? null,
-    session_id: input.clientPhone,
-    contact_id: input.clientPhone,
+    session_id: null,
+    contact_id: input.contactId ?? input.clientPhone,
     staff_id: input.staffId,
     service_id: input.serviceId,
     starts_at: input.datetime,
@@ -1418,6 +1419,7 @@ export async function createBookingFromTool(input: {
     datetime: new Date(input.datetime).toISOString(),
     clientName: input.clientName,
     clientPhone: input.clientPhone,
+    contactId: input.contactId,
     status: "confirmed",
     source: input.contactId?.startsWith("SANDBOX_") ? "sandbox" : "n8n"
   });
